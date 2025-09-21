@@ -1,5 +1,5 @@
 use archidekt_live_set_completion_lib::*;
-use rocket::{form::Form, response::Redirect};
+use rocket::{form::Form, http::ContentType, response::Redirect};
 use rocket_dyn_templates::{Template, context};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -7,13 +7,12 @@ use std::collections::HashMap;
 #[macro_use]
 extern crate rocket;
 
-const ARCHIDEKT_USER_ID: &str = "758741";
 #[get("/")]
 async fn index() -> Template {
-    Template::render("index", context! {  })
+    Template::render("index", context! {})
 }
 #[post("/", data = "<url>")]
-async fn process_url(url:Form<String>)->Redirect{
+async fn process_url(url: Form<&str>) -> Redirect {
     regex::Regex::new(r"https://archidekt\.com/collection/v2/(\d+)/?")
         .unwrap()
         .captures(&url)
@@ -23,7 +22,7 @@ async fn process_url(url:Form<String>)->Redirect{
         .unwrap_or_else(|| Redirect::to("/"))
 }
 #[get("/archidekt/<id>")]
-async fn archidekt(id:String) -> Template {
+async fn archidekt(id: &str) -> Template {
     let mut post = ExportRequest {
         fields: vec![
             "card__oracleCard__name".to_string(),
@@ -97,14 +96,21 @@ async fn archidekt(id:String) -> Template {
             .find(|s| s.code == key)
             .and_then(|s| s.name.clone());
         for card in &mut set_cards {
-            card.collected = Some(cards.iter().any(|c| c.collector_number == card.collector_number));
+            card.collected = Some(
+                cards
+                    .iter()
+                    .any(|c| c.collector_number == card.collector_number),
+            );
         }
         set_cards.sort_by(|a, b| {
             let a_num = a.collector_number.parse::<f32>().unwrap_or(f32::MAX);
             let b_num = b.collector_number.parse::<f32>().unwrap_or(f32::MAX);
             a_num.partial_cmp(&b_num).unwrap()
         });
-        let collected_count = set_cards.iter().filter(|c| c.collected.unwrap_or(false)).count();
+        let collected_count = set_cards
+            .iter()
+            .filter(|c| c.collected.unwrap_or(false))
+            .count();
         let set_completion = collected_count as f32 / set_cards.len() as f32;
         sets.push(Set {
             code: key.clone(),
@@ -125,7 +131,7 @@ async fn archidekt(id:String) -> Template {
     Template::render("sets", context! { sets: sets })
 }
 pub const SUBSET_JSON: &str = include_str!(concat!(env!("OUT_DIR"), "/scryfall-cards.json"));
-fn get_bulk() -> Vec<ScryfallCard>{
+fn get_bulk() -> Vec<ScryfallCard> {
     let data = serde_json::from_str::<BulkData>(SUBSET_JSON);
     if let Ok(data) = data {
         return data.cards;
@@ -153,7 +159,6 @@ struct ScryfallSet {
     name: Option<String>,
     search_uri: Option<String>,
 }
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct ArchidektCard {
@@ -185,29 +190,34 @@ impl From<ArchidektCard> for Card {
             collector_number: value.collector_number,
             scryfall_id: value.scryfall_id,
             collected: value.collected,
-            image:None
+            image: None,
         }
     }
 }
 impl From<ScryfallCard> for Card {
     fn from(value: ScryfallCard) -> Self {
-        let image = value.image_uris.as_ref().and_then(|uris| uris.get("png").cloned()).or(
-            value.card_faces.as_ref().and_then(|faces| {
+        let image = value
+            .image_uris
+            .as_ref()
+            .and_then(|uris| uris.get("png").cloned())
+            .or(value.card_faces.as_ref().and_then(|faces| {
                 if !faces.is_empty() {
-                    faces[0].image_uris.as_ref().and_then(|uris| uris.get("png").cloned())
+                    faces[0]
+                        .image_uris
+                        .as_ref()
+                        .and_then(|uris| uris.get("png").cloned())
                 } else {
                     None
                 }
-            }),
-        );
-        
+            }));
+
         Card {
             name: value.name,
             set_code: value.set,
             collector_number: value.collector_number,
             scryfall_id: Some(value.id),
             collected: Some(false),
-            image//: image.map(|i| format!("/scryfall-thumb.webp?url={}", urlencoding::encode(&i.clone())))
+            image, //: image.map(|i| format!("/scryfall-thumb.webp?url={}", urlencoding::encode(&i.clone())))
         }
     }
 }
@@ -228,12 +238,15 @@ struct ExportRequest {
     #[serde(rename = "pageSize")]
     page_size: u32,
 }
-
-
+const CSS: &str = include_str!("../static/style.css");
+#[get("/style.css")]
+fn style() -> (ContentType, &'static str) {
+    (ContentType::CSS, CSS)
+}
 
 #[launch]
 fn rocket() -> _ {
     rocket::build()
         .attach(Template::fairing())
-        .mount("/", routes![archidekt,index,process_url])
+        .mount("/", routes![archidekt, index, process_url, style])
 }
