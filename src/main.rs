@@ -1,8 +1,9 @@
-use image::ImageEncoder;
+use archidekt_live_set_completion_lib::*;
 use rocket::{form::Form, response::Redirect};
 use rocket_dyn_templates::{Template, context};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs};
+use std::collections::HashMap;
+
 #[macro_use]
 extern crate rocket;
 
@@ -72,7 +73,7 @@ async fn archidekt(id:String) -> Template {
 
     //let mut sets = HashMap::new();
     let mut sets = Vec::new();
-    let bulk_cards = get_bulk().await;
+    let bulk_cards = get_bulk();
     let mut bulk_sets: HashMap<String, Vec<ScryfallCard>> = HashMap::new();
     for card in bulk_cards {
         bulk_sets.entry(card.set.clone()).or_default().push(card);
@@ -123,6 +124,14 @@ async fn archidekt(id:String) -> Template {
     sets.sort_by(|a, b| b.set_completion.partial_cmp(&a.set_completion).unwrap());
     Template::render("sets", context! { sets: sets })
 }
+pub const SUBSET_JSON: &str = include_str!(concat!(env!("OUT_DIR"), "/scryfall-cards.json"));
+fn get_bulk() -> Vec<ScryfallCard>{
+    let data = serde_json::from_str::<BulkData>(SUBSET_JSON);
+    if let Ok(data) = data {
+        return data.cards;
+    }
+    vec![]
+}
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Set {
     code: String,
@@ -144,25 +153,7 @@ struct ScryfallSet {
     name: Option<String>,
     search_uri: Option<String>,
 }
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct ScryfallCardList {
-    has_more: bool,
-    next_page: Option<String>,
-    data: Vec<ScryfallCard>,
-}
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct ScryfallCard {
-    name: String,
-    collector_number: String,
-    set: String,
-    id: String,
-    image_uris: Option<HashMap<String, String>>,
-    card_faces: Option<Vec<ScryfallCardFace>>,
-}
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct ScryfallCardFace {
-    image_uris: Option<HashMap<String, String>>,
-}
+
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct ArchidektCard {
@@ -238,132 +229,11 @@ struct ExportRequest {
     page_size: u32,
 }
 
-async fn get_bulk() -> Vec<ScryfallCard> {
-    let data = serde_json::from_str::<BulkData>(
-        &fs::read_to_string("/var/data/scryfall-cards.json").unwrap_or("{}".to_string()),
-    );
-    if let Ok(data) = data {
-        let age = chrono::Utc::now().signed_duration_since(
-            chrono::DateTime::parse_from_rfc3339(&data.updated_at)
-                .unwrap()
-                .with_timezone(&chrono::Utc),
-        );
-        if age.num_days() < 7 {
-            return data.cards;
-        }
-    }
-    let client = reqwest::Client::new();
-    let res: serde_json::Value = client
-        .get("https://api.scryfall.com/bulk-data")
-        .header("User-Agent", "archidekt-live-set-completion")
-        .header("Accept", "application/json")
-        .send()
-        .await
-        .unwrap()
-        .json()
-        .await
-        .unwrap();
-    let items = res["data"].as_array().unwrap();
-    for item in items {
-        if item["type"] == "default_cards" {
-            let updated_at = item["updated_at"].as_str().unwrap();
-            let download_uri = item["download_uri"].as_str().unwrap();
-            let res: Vec<ScryfallCard> = client
-                .get(download_uri)
-                .header("User-Agent", "archidekt-live-set-completion")
-                .header("Accept", "application/json")
-                .send()
-                .await
-                .unwrap()
-                .json()
-                .await
-                .unwrap();
-            fs::write(
-                "/var/data/scryfall-cards.json",
-                serde_json::to_string_pretty(&BulkData {
-                    updated_at: updated_at.to_owned(),
-                    cards: res.clone(),
-                })
-                .unwrap(),
-            )
-            .unwrap();
-            return res;
-        }
-    }
-    vec![]
-}
-#[derive(Serialize, Deserialize)]
-struct BulkData {
-    updated_at: String,
-    cards: Vec<ScryfallCard>,
-}
 
 
-#[get("/scryfall-thumb.webp?<url>")]
-async fn scryfall_thumb(url: &str, cache: &State<CacheConfig>)
-    -> Result<(ContentType, Vec<u8>), Status>
-{
-    // 1) Basic allowlist: only accept Scryfall image hosts.
-    let parsed = Url::parse(url).map_err(|_| Status::BadRequest)?;
-    let host_ok = matches!(parsed.host_str(), Some(h) if
-        h.ends_with("scryfall.com") || h.ends_with("cards.scryfall.io"));
-    if !host_ok { return Err(Status::BadRequest); }
-
-    // 2) Cache key: sha256(url) + fixed size and extension.
-    let mut hasher = Sha256::new();
-    hasher.update(url.as_bytes());
-    let key = format!("{:x}-146x204.webp", hasher.finalize());
-    let path = cache.dir.join(key);
-
-    // 3) If cached, serve it.
-    if tokio::fs::try_exists(&path).await.map_err(|_| Status::InternalServerError)? {
-        let bytes = tokio::fs::read(&path).await.map_err(|_| Status::InternalServerError)?;
-        return Ok((ContentType::JPEG, bytes));
-    }
-
-    // 4) Not cached: download original.
-    let resp = reqwest::get(parsed.as_str()).await.map_err(|_| Status::BadGateway)?;
-    if !resp.status().is_success() { return Err(Status::BadGateway); }
-    let original = resp.bytes().await.map_err(|_| Status::BadGateway)?;
-
-    // 5) Decode + resize to 146x204.
-    let img = image::load_from_memory(&original)
-        .map_err(|_| Status::UnsupportedMediaType)?;
-    let resized = image::imageops::resize(&img, 146, 204, image::imageops::FilterType::CatmullRom);
-    
-    // 6) Encode as JPEG (quality 85).
-    let mut out = Vec::new();
-    let encoder = image::codecs::webp::WebPEncoder::new_lossless(&mut out);
-    //let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 85);
-    //encoder.encode_image(&resized).map_err(|_| Status::InternalServerError)?;
-    encoder.write_image(&resized, 146, 204, image::ExtendedColorType::Rgba8).map_err(|_| Status::InternalServerError)?;
-   // encoder.encode(buf, width, height, color_type)
-
-    // 7) Ensure cache dir exists; write atomically.
-    if let Err(_) = tokio::fs::create_dir_all(&cache.dir).await {
-        // If we can't create cache dir, still serve the bytes below.
-    } else {
-        let tmp = path.with_extension("part");
-        if tokio::fs::write(&tmp, &out).await.is_ok() {
-            let _ = tokio::fs::rename(&tmp, &path).await; // best-effort
-        }
-    }
-
-    Ok((ContentType::WEBP, out))
-}
-use std::{path::{Path, PathBuf}, io::Cursor};
-use rocket::{State, http::ContentType, http::Status};
-use sha2::{Digest, Sha256};
-use url::Url;
-
-#[derive(Clone)]
-struct CacheConfig {
-    dir: PathBuf,
-}
 #[launch]
 fn rocket() -> _ {
     rocket::build()
         .attach(Template::fairing())
-        .manage(CacheConfig { dir: PathBuf::from("/var/data") })    
-        .mount("/", routes![archidekt,index,process_url,scryfall_thumb])
+        .mount("/", routes![archidekt,index,process_url])
 }
