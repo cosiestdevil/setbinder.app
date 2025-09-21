@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Archidekt Live Set Completion</title>
+    <link href="//cdn.jsdelivr.net/npm/keyrune@latest/css/keyrune.css" rel="stylesheet" type="text/css" />
+    <style>
+        :root {
+            color-scheme: light dark;
+        }
+
+        * {
+            scrollbar-width: thin;
+        }
+
+        html {
+            height: 100%;
+        }
+
+        body {
+            font-family: system-ui;
+            margin:
+                20px;
+            height: 100%;
+            overflow: auto;
+        }
+
+        h1 {
+            color: color-mix(in lab, CanvasText, Canvas 18.75%);
+            text-align: center;
+        }
+
+        h2,
+        th {
+            color: color-mix(in lab, CanvasText, Canvas 31.25%);
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Set Completion Tracker</h1>
+    <form method="post" action="/">
+        <label for="url">Enter URL:</label>
+        <input id="url" name="url" type="text" placeholder="https://archidekt.com/collection/v2/1234" />
+        <button type="submit">Submit</button>
+    </form>
+
+</body>
+
+</html>

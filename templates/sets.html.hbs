@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Archidekt Live Set Completion</title>
+  <link href="//cdn.jsdelivr.net/npm/keyrune@latest/css/keyrune.css" rel="stylesheet" type="text/css" /> 
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    *{
+      scrollbar-width: thin;
+    }
+
+    html {
+      height: 100%;
+    }
+
+    body {
+      font-family: system-ui;
+      margin:
+        20px;
+      height: 100%;
+      overflow: auto;
+    }
+
+    h1 {
+      color: color-mix(in lab, CanvasText, Canvas 18.75%);
+      text-align: center;
+    }
+    table {
+      max-width: 640px;
+      width: 100%;
+      margin-inline: auto;
+      border-collapse: collapse;
+    }
+    h2,
+    th {
+      color: color-mix(in lab, CanvasText, Canvas 31.25%);
+    }
+
+    ul {
+      list-style-type: none;
+      padding: 0;
+    }
+
+    li {
+      margin: 5px 0;
+    }
+
+    a {
+      text-decoration: none;
+      color: #007BFF;
+    }
+
+    a:hover {
+      text-decoration:
+        underline;
+    }
+
+    img.disabled {
+      filter: grayscale(100%);
+      opacity: 0.5;
+    }
+
+    dialog {
+      width: 80%;
+      height: 80%;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+    }
+
+    figure {
+      margin: 0;
+    }
+
+    figcaption {
+      font-size: 0.8em;
+      text-align: center;
+    }
+
+    ::backdrop {
+      background: rgba(0, 0, 0, 0.5);
+    }
+
+    dialog,
+    ::backdrop {
+      overscroll-behavior: contain;
+    }
+
+    body:has(dialog[open]) {
+      overflow: hidden;
+    }
+
+    .grid img {
+      height: 204px;
+      width: 146px;
+    }
+
+    .modal-header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid;
+      margin-bottom: 10px;
+    }
+
+    .modal-content {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-body {
+      overflow: auto;
+      flex-grow: 1;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Archidekt Live Set Completion</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>Set Code</th>
+        <th>Set Name</th>
+        <th>Completion</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each sets}}
+      <tr>
+        <td><i class="ss ss-{{this.code}}"></i>&nbsp;{{this.code}}</td>
+        <td>{{#if this.name}}{{this.name}}{{else}}Unknown Set{{/if}}</td>
+        <td>{{this.set_percentage}}
+          <br />
+          {{this.collected_count}} / {{this.set_count}} cards
+        </td>
+        <td><button onclick="document.getElementById('dialog-{{this.code}}').showModal();">Cards</button>
+          <dialog id="dialog-{{this.code}}" closedby="any">
+            <div class="modal-content">
+              <form method="dialog" class="modal-header">
+                <h2><i class="ss ss-{{this.code}}"></i>&nbsp;{{this.code}}
+                  -
+                  {{#if this.name}}{{this.name}}{{else}}Unknown Set{{/if}}
+                  <br />
+                  <small>{{this.set_percentage}}
+                    <br />
+                    {{this.collected_count}} / {{this.set_count}} cards</small>
+                </h2>
+                <button>X</button>
+              </form>
+              <ul class="grid modal-body">
+                {{#each this.cards}}
+                <li>
+                  <figure>
+                    <img loading="lazy" class="{{#unless this.collected}}disabled{{/unless}}" src="https://setbinder.app/cdn-cgi/image/width=146,height=204,format=avif/{{this.image}}"
+                      title="{{#if this.collected}}Collected{{else}}Not Collected{{/if}}" />
+                    <figcaption>{{this.collector_number}} - {{this.name}}</figcaption>
+                  </figure>
+                </li>
+                {{/each}}
+              </ul>
+            </div>
+          </dialog>
+        </td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+</body>
+
+</html>
