@@ -240,7 +240,7 @@ struct ExportRequest {
 
 async fn get_bulk() -> Vec<ScryfallCard> {
     let data = serde_json::from_str::<BulkData>(
-        &fs::read_to_string("scryfall-cards.json").unwrap_or("{}".to_string()),
+        &fs::read_to_string("/var/data/scryfall-cards.json").unwrap_or("{}".to_string()),
     );
     if let Ok(data) = data {
         let age = chrono::Utc::now().signed_duration_since(
@@ -279,7 +279,7 @@ async fn get_bulk() -> Vec<ScryfallCard> {
                 .await
                 .unwrap();
             fs::write(
-                "scryfall-cards.json",
+                "/var/data/scryfall-cards.json",
                 serde_json::to_string_pretty(&BulkData {
                     updated_at: updated_at.to_owned(),
                     cards: res.clone(),
@@ -364,6 +364,6 @@ struct CacheConfig {
 fn rocket() -> _ {
     rocket::build()
         .attach(Template::fairing())
-        .manage(CacheConfig { dir: PathBuf::from("cache") })    
+        .manage(CacheConfig { dir: PathBuf::from("/var/data") })    
         .mount("/", routes![archidekt,index,process_url,scryfall_thumb])
 }
