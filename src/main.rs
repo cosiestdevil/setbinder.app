@@ -9,7 +9,7 @@ extern crate rocket;
 
 #[get("/")]
 async fn index() -> Template {
-    Template::render("index", context! {})
+    Template::render("index", context! {title:"Set Binder",description:"Track every set. Complete your collection."})
 }
 #[post("/", data = "<url>")]
 async fn process_url(url: Form<&str>) -> Redirect {
@@ -128,7 +128,7 @@ async fn archidekt(id: &str) -> Template {
         });
     }
     sets.sort_by(|a, b| b.set_completion.partial_cmp(&a.set_completion).unwrap());
-    Template::render("sets", context! { sets: sets })
+    Template::render("sets", context! { sets: sets,title:"Archidekt Set Binder",description:"Set completion for an archidekt collection" })
 }
 pub const SUBSET_JSON: &str = include_str!(concat!(env!("OUT_DIR"), "/scryfall-cards.json"));
 fn get_bulk() -> Vec<ScryfallCard> {
@@ -238,7 +238,7 @@ struct ExportRequest {
     #[serde(rename = "pageSize")]
     page_size: u32,
 }
-const CSS: &str = include_str!("../static/style.css");
+const CSS: &str = include_str!(concat!(env!("OUT_DIR"), "/styles.min.css"));
 #[get("/style.css")]
 fn style() -> (ContentType, &'static str) {
     (ContentType::CSS, CSS)

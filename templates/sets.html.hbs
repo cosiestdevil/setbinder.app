@@ -1,53 +1,77 @@
 {{#> layout}}
-  <h1>Archidekt Live Set Completion</h1>
-  <table>
-    <thead>
-      <tr>
-        <th>Set Code</th>
-        <th>Set Name</th>
-        <th>Completion</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {{#each sets}}
-      <tr>
-        <td><i class="ss ss-{{this.code}}"></i>&nbsp;{{this.code}}</td>
-        <td>{{#if this.name}}{{this.name}}{{else}}Unknown Set{{/if}}</td>
-        <td>{{this.set_percentage}}
-          <br />
-          {{this.collected_count}} / {{this.set_count}} cards
-        </td>
-        <td><button onclick="document.getElementById('dialog-{{this.code}}').showModal();">Cards</button>
-          <dialog id="dialog-{{this.code}}" closedby="any">
-            <div class="modal-content">
-              <form method="dialog" class="modal-header">
-                <h2><i class="ss ss-{{this.code}}"></i>&nbsp;{{this.code}}
-                  -
-                  {{#if this.name}}{{this.name}}{{else}}Unknown Set{{/if}}
+<h1>Archidekt Live Set Completion</h1>
+<table>
+  <thead>
+    <tr>
+      <th>Set Code</th>
+      <th>Set Name</th>
+      <th>Completion</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each sets}}
+    <tr>
+      <td><i class="ss ss-{{this.code}}"></i>&nbsp;{{this.code}}</td>
+      <td>{{#if this.name}}{{this.name}}{{else}}Unknown Set{{/if}}</td>
+      <td>{{this.set_percentage}}
+        <br />
+        {{this.collected_count}} / {{this.set_count}} cards
+      </td>
+      <td><button data-open="dialog-{{this.code}}">Cards</button>
+        <template id="dialog-{{this.code}}">
+          <div class="modal-content">
+            <form method="dialog" class="modal-header">
+              <h2><i class="ss ss-{{this.code}}"></i>&nbsp;{{this.code}}
+                -
+                {{#if this.name}}{{this.name}}{{else}}Unknown Set{{/if}}
+                <br />
+                <small>{{this.set_percentage}}
                   <br />
-                  <small>{{this.set_percentage}}
-                    <br />
-                    {{this.collected_count}} / {{this.set_count}} cards</small>
-                </h2>
-                <button>X</button>
-              </form>
-              <ul class="grid modal-body">
-                {{#each this.cards}}
-                <li>
-                  <figure>
-                    <img loading="lazy" class="{{#unless this.collected}}disabled{{/unless}}" src="https://setbinder.app/cdn-cgi/image/width=146,height=204,format=avif/{{this.image}}"
-                      title="{{#if this.collected}}Collected{{else}}Not Collected{{/if}}" />
-                    <figcaption>{{this.collector_number}} - {{this.name}}</figcaption>
-                  </figure>
-                </li>
-                {{/each}}
-              </ul>
-            </div>
-          </dialog>
-        </td>
-      </tr>
-      {{/each}}
-    </tbody>
-  </table>
+                  {{this.collected_count}} / {{this.set_count}} cards</small>
+              </h2>
+              <button>X</button>
+            </form>
+            <ul class="grid modal-body">
+              {{#each this.cards}}
+              <li>
+                <figure>
+                  <img loading="lazy" class="{{#unless this.collected}}disabled{{/unless}}"
+                    src="https://setbinder.app/cdn-cgi/image/width=146,height=204,format=avif/{{this.image}}"
+                    title="{{#if this.collected}}Collected{{else}}Not Collected{{/if}}" />
+                  <figcaption>{{this.collector_number}} - {{this.name}}</figcaption>
+                </figure>
+              </li>
+              {{/each}}
+            </ul>
+          </div>
+        </template>
+      </td>
+    </tr>
+    {{/each}}
+  </tbody>
+</table>
+<dialog id="set-dialog" closedby="any">
+
+</dialog>
+<script>
+  const shell = document.getElementById('set-dialog');
+  function mountFromTemplate(tplId) {
+    shell.replaceChildren(); // if something was there from a previous open
+    const tpl = document.getElementById(tplId);
+    const frag = tpl.content.cloneNode(true); // DocumentFragment (fast)
+    shell.append(frag);
+  }
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-open]');
+    if (!btn) return;
+    mountFromTemplate(btn.dataset.open);
+    shell.showModal();
+  });
+  shell.addEventListener('close', () => {
+    // Read result if you used <form method="dialog">
+    // console.log('Result:', shell.returnValue);
+    shell.replaceChildren(); // free memory; remove if you want to keep state
+  });
+</script>
 {{/layout}}
