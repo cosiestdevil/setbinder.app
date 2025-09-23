@@ -1,0 +1,11 @@
+[package]
+name = "models"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+test = false
+doctest = false
+
+[dependencies]
+serde = {workspace = true}

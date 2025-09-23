@@ -1,0 +1,18 @@
+[package]
+name = "scryfall"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+test = false
+doctest = false
+
+[build-dependencies]
+models = {workspace = true}
+serde = {workspace = true}
+serde_json = {workspace = true}
+reqwest = {workspace = true, features = ["blocking"]}
+
+[dependencies]
+serde_json = {workspace = true}
+models = {workspace = true}

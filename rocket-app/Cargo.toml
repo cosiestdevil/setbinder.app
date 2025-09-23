@@ -1,0 +1,29 @@
+[package]
+name = "rocket-app"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name="setbinder"
+path = "src/main.rs"
+test = false
+doctest = false
+
+
+[build-dependencies]
+lightningcss = "1.0.0-alpha.67"
+
+[dependencies]
+regex = "1.11.2"
+reqwest = {workspace = true}
+rocket = "0.5.1"
+tokio = { workspace = true}
+serde = { workspace = true}
+serde_json = { workspace = true}
+models = {workspace = true}
+archidekt-provider = {workspace = true}
+
+[dependencies.rocket_dyn_templates]
+version = "0.2.0"
+features = ["handlebars"]
+
