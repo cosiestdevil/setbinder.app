@@ -11,6 +11,6 @@ RUN apk add openssl ca-certificates
 COPY --from=builder /usr/local/cargo/bin/setbinder /usr/local/bin/setbinder.app
 RUN mkdir -p /usr/local/templates/setbinder.app
 ENV ROCKET_ADDRESS=0.0.0.0
-ENV ROCKET_PORT=10000
+ENV ROCKET_PORT=8080
 ENV ROCKET_TEMPLATE_DIR=/usr/local/templates/setbinder.app
 CMD ["setbinder.app"]
