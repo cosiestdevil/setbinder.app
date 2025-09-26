@@ -10,3 +10,9 @@ scryfall= {path = "scryfall"}
 provider = {path = "provider"}
 archidekt-provider = {path = "archidekt-provider"}
 tokio = { version = "1", features = ["full"] }
+
+[profile.release]
+strip = true  # Automatically strip symbols from the binary.
+opt-level = "z"
+lto = true
+codegen-units = 1

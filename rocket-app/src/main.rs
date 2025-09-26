@@ -1,12 +1,18 @@
+use rocket::fairing::Fairing;
 use rocket::{form::Form, http::ContentType, response::Redirect};
-use rocket_dyn_templates::{Template, context};
+use rocket_dyn_templates::{context, Template};
+#[cfg(not(debug_assertions))]
+use rocket_dyn_templates::TemplateInfo;
 
 #[macro_use]
 extern crate rocket;
 
 #[get("/")]
 async fn index() -> Template {
-    Template::render("index", context! {title:"Set Binder",description:"Track every set. Complete your collection."})
+    Template::render(
+        "index",
+        context! {title:"Set Binder",description:"Track every set. Complete your collection."},
+    )
 }
 #[post("/", data = "<url>")]
 async fn process_url(url: Form<&str>) -> Redirect {
@@ -21,10 +27,11 @@ async fn process_url(url: Form<&str>) -> Redirect {
 #[get("/archidekt/<id>")]
 async fn archidekt(id: &str) -> Template {
     let sets = archidekt_provider::get_data(id).await;
-    Template::render("sets", context! { sets: sets,title:"Archidekt Set Binder",description:"Set completion for an archidekt collection" })
+    Template::render(
+        "sets",
+        context! { sets: sets,title:"Archidekt Set Binder",description:"Set completion for an archidekt collection" },
+    )
 }
-
-
 
 const CSS: &str = include_str!(concat!(env!("OUT_DIR"), "/styles.min.css"));
 #[get("/style.css")]
@@ -35,6 +42,29 @@ fn style() -> (ContentType, &'static str) {
 #[launch]
 fn rocket() -> _ {
     rocket::build()
-        .attach(Template::fairing())
+        .attach(templates())
         .mount("/", routes![archidekt, index, process_url, style])
+}
+#[cfg(debug_assertions)]
+fn templates() -> impl Fairing {
+    println!("Debug Templates");
+    Template::fairing()
+}
+#[cfg(not(debug_assertions))]
+fn templates() -> impl Fairing {
+    println!("Embedded Templates");
+    Template::custom(|(engines,templates)| {
+        for (name, content) in templates::TEMPLATES {
+            engines
+                .handlebars
+                .register_template_string(name, content)
+                .unwrap();
+            templates.insert(name.to_string(), TemplateInfo { path: None, engine_ext: "hbs", data_type: ContentType::HTML });
+        }
+    })
+}
+
+#[cfg(not(debug_assertions))]
+mod templates {
+    include!(concat!(env!("OUT_DIR"), "/templates.rs"));
 }

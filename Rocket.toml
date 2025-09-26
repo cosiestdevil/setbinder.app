@@ -4,6 +4,3 @@ port = 10000
 
 [debug]
 template_dir = "rocket-app/templates"
-
-[release]
-template_dir = "rocket-app/templates"

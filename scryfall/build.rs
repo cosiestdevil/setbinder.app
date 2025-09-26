@@ -1,11 +1,10 @@
 use std::{env, fs, path::PathBuf, time::Duration};
-
 use models::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=build.rs");
     let out_dir = PathBuf::from(env::var("OUT_DIR")?);
-    let out_path = out_dir.join("scryfall-cards.json");
+    let out_path = out_dir.join("scryfall-cards.bin");
     let client = reqwest::blocking::Client::new();
     let res: serde_json::Value = client
         .get("https://api.scryfall.com/bulk-data")
@@ -29,13 +28,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap()
                 .json()
                 .unwrap();
+
             fs::write(
                 out_path,
-                serde_json::to_string_pretty(&BulkData {
-                    updated_at: updated_at.to_owned(),
-                    cards: res.clone(),
-                })
-                .unwrap(),
+                bincode::serde::encode_to_vec(
+                    &BulkData {
+                        updated_at: updated_at.to_owned(),
+                        cards: res.clone(),
+                    },
+                    bincode::config::standard(),
+                )
+                .unwrap(), // serde_json::to_string(&BulkData {
+                           //     updated_at: updated_at.to_owned(),
+                           //     cards: res.clone(),
+                           // })
+                           // .unwrap(),
             )
             .unwrap();
             break;
