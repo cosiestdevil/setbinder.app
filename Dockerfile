@@ -2,9 +2,7 @@ FROM rust:1-alpine3.20 AS builder
 WORKDIR /usr/src/setbinder.app
 COPY . .
 RUN apk add pkgconfig openssl-dev libc-dev openssl-libs-static
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/src/setbinder.app/target \
-    cargo install --path rocket-app
+RUN cargo install --path rocket-app
 
 FROM alpine:3
 RUN apk add openssl ca-certificates
