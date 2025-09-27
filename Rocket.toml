@@ -1,6 +1,4 @@
 [default]
 address = "0.0.0.0"
 port = 10000
-
-[debug]
 template_dir = "rocket-app/templates"
