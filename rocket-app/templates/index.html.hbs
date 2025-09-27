@@ -1,8 +1,30 @@
-{{#> layout}}
-    <h1>Set Completion Tracker</h1>
+{{#> layout header="SetBinder.app"}}
+<section>
     <form method="post" action="/">
-        <label for="url">Enter URL:</label>
-        <input id="url" name="url" type="text" placeholder="https://archidekt.com/collection/v2/1234" />
-        <button type="submit">Submit</button>
+        <fieldset>
+            <legend><label for="url">Enter URL:</label></legend>
+            <input id="url" name="url" type="text" placeholder="https://archidekt.com/collection/v2/1234" />
+            <button type="submit">Submit</button>
+        </fieldset>
     </form>
+</section>
+{{!--
+<section>
+    <div>
+        <h2>Instructions</h2>
+        <ol>
+            <li>Go to <a href="https://archidekt.com/collection" target="_blank" rel="noopener">Archidekt
+                    Collections</a>
+            </li>
+            <li>Click on your collection</li>
+            <li>Copy the URL from your browser's address bar</li>
+            <li>Paste it into the input box above and click Submit</li>
+            <li>Wait a few seconds for the data to load and process</li>
+            <li>View your set completion percentages!</li>
+        </ol>
+        <p>This tool uses the Archidekt public API to fetch your collection data. No data is stored on this server. All
+            processing is done in-memory and results are discarded after being sent to your browser.</p>
+    </div>
+</section>
+--}}
 {{/layout}}

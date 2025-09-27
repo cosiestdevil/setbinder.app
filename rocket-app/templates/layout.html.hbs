@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,20 +8,27 @@
     <title>{{title}}</title>
     <script type="application/javascript">
         let theme = window.localStorage.getItem('theme') ?? "system";
-        if (theme !== "system"){
+        if (theme !== "system") {
             document.documentElement.setAttribute('data-theme', theme);
         }
-        setTimeout(()=>{
+        setTimeout(() => {
             document.getElementById(`theme-${theme}`).checked = true;
         }, 0);
 
-        
+
     </script>
     <link href="https://cdn.jsdelivr.net/npm/keyrune@latest/css/keyrune.css" rel="stylesheet" type="text/css" />
-    <link href="/style.css" rel="stylesheet" type="text/css" /> 
+    <link href="/style.css" rel="stylesheet" type="text/css" />
 </head>
+
 <body>
-{{> theme}}
-{{> @partial-block}}    
+    <header>
+        <h1>{{header}}</h1>
+        {{> theme}}
+    </header>
+    <main>
+        {{> @partial-block}}
+    </main>
 </body>
+
 </html>
