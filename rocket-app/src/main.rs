@@ -33,10 +33,20 @@ async fn archidekt(id: &str) -> Template {
     )
 }
 
+#[cfg(not(debug_assertions))]
 const CSS: &str = include_str!(concat!(env!("OUT_DIR"), "/styles.min.css"));
+#[cfg(not(debug_assertions))]
 #[get("/style.css")]
 fn style() -> (ContentType, &'static str) {
+    print!("Embedded Style");
     (ContentType::CSS, CSS)
+}
+
+#[cfg(debug_assertions)]
+#[get("/style.css")]
+fn style() -> Template {
+    print!("Debug Style");
+    Template::render("style", context! {})
 }
 
 #[launch]

@@ -1,0 +1,7 @@
+<fieldset>
+    <legend>Theme</legend>
+    <label><input type="radio" name="theme" value="system" id="theme-system" onchange="document.documentElement.removeAttribute('data-theme'); window.localStorage.setItem('theme', 'system');"> System</label>
+    <label><input type="radio" name="theme" value="light" id="theme-light" onchange="document.documentElement.setAttribute('data-theme', 'light'); window.localStorage.setItem('theme', 'light');"> Light</label>
+    <label><input type="radio" name="theme" value="dark" id="theme-dark"  onchange="document.documentElement.setAttribute('data-theme', 'dark'); window.localStorage.setItem('theme', 'dark');"> Dark</label>
+    <label><input type="radio" name="theme" value="hotdog" id="theme-hotdog"  onchange="document.documentElement.setAttribute('data-theme', 'hotdog'); window.localStorage.setItem('theme', 'hotdog');"> Hotdog</label>
+</fieldset>
