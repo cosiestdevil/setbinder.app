@@ -1,13 +1,16 @@
+use std::sync::Arc;
+
+use futures::{StreamExt, stream};
 use models::*;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-pub async fn get_data(id: &str) -> Vec<Set> {
-    let client = Client::new();
-    let cards = get_cards(&client,id).await;
-    provider::process_data(&client, cards).await
+pub async fn get_data(id: String) -> Vec<Set> {
+    let client = Arc::new(Client::new());
+    let cards = get_cards(client.clone(), id).await;
+    provider::process_data(client.clone(), cards).await
 }
-pub async fn get_cards(client:&Client,id: &str) -> Vec<Card> {
-    let mut post = ExportRequest {
+pub async fn get_cards(client: Arc<Client>, id:String) -> Vec<Card> {
+    let post = ExportRequest {
         fields: vec![
             "card__oracleCard__name".to_string(),
             "card__edition__editioncode".to_string(),
@@ -15,37 +18,58 @@ pub async fn get_cards(client:&Client,id: &str) -> Vec<Card> {
             "card__uid".to_string(),
         ],
         game: 1,
-        page: 0,
-        page_size: 2500,
+        page: 1,
+        page_size: 250,
     };
-    let mut cards: Vec<Card> = vec![];
-
-    loop {
-        post.page += 1;
-        let res: ExportResponse = client
-            .post(format!(
-                "https://archidekt.com/api/collection/export/v2/{id}/"
-            ))
-            .json(&post)
-            .send()
-            .await
-            .unwrap()
-            .json()
-            .await
-            .unwrap();
-        let mut rdr = csv::ReaderBuilder::new()
-            .has_headers(post.page == 1)
-            .from_reader(res.content.as_bytes());
-        //let mut rdr = csv::Reader::from_reader(res.content.as_bytes());
-        for result in rdr.deserialize() {
-            let record: ArchidektCard = result.unwrap();
-            cards.push(record.into());
-        }
-        if !res.more_content {
-            break;
-        }
+    let page = get_page(client.clone(), post.clone(), id.clone()).await;
+    let total = page.1;
+    let mut cards: Vec<Card> = page.0;
+    let page_count = (total as f32 / post.page_size as f32).ceil() as u8;
+    if page_count <= 1 {
+        return cards;
     }
+    let new_cards: Vec<Card> = stream::iter(1..page_count)
+        .map(|it| {
+            let mut post = post.clone();
+            post.page = it;
+            (client.clone(), post, id.clone())
+        })
+        .map(async move |it| {
+            let (client, post, id) = it;
+            get_page(client, post, id).await.0
+        })
+        .buffer_unordered(5)
+        .flat_map(stream::iter)
+        .collect()
+        .await;
+    cards.extend(new_cards);
     cards
+}
+async fn get_page(client: Arc<Client>, post: ExportRequest, id: String) -> (Vec<Card>, usize) {
+    let mut cards: Vec<Card> = vec![];
+    let res: ExportResponse = client
+        .post(format!(
+            "https://archidekt.com/api/collection/export/v2/{id}/"
+        ))
+        .json(&post)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let mut rdr = csv::ReaderBuilder::new()
+        .has_headers(post.page == 1)
+        .from_reader(res.content.as_bytes());
+    //let mut rdr = csv::Reader::from_reader(res.content.as_bytes());
+    for result in rdr.deserialize() {
+        let record: ArchidektCard = result.expect(format!(
+            "Failed to parse CSV for Archidekt ID {} on page {}",
+            id, post.page
+        ).as_str());
+        cards.push(record.into());
+    }
+    return (cards, res.total_rows as usize);
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct ArchidektCard {
@@ -57,7 +81,6 @@ struct ArchidektCard {
     collector_number: String,
     #[serde(rename = "Scryfall ID")]
     scryfall_id: Option<String>,
-    collected: Option<bool>,
 }
 
 impl From<ArchidektCard> for Card {
@@ -67,7 +90,7 @@ impl From<ArchidektCard> for Card {
             set_code: value.set_code,
             collector_number: value.collector_number,
             scryfall_id: value.scryfall_id,
-            collected: value.collected,
+            collected: Some(true),
             image: None,
         }
     }
@@ -80,7 +103,7 @@ struct ExportResponse {
     #[serde(rename = "moreContent")]
     more_content: bool,
 }
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct ExportRequest {
     fields: Vec<String>,
     game: u8,

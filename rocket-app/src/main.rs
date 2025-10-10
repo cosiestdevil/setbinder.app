@@ -26,6 +26,7 @@ async fn process_url(url: Form<&str>) -> Redirect {
 }
 #[get("/archidekt/<id>")]
 async fn archidekt(id: &str) -> Template {
+    let id = id.to_string();
     let sets = archidekt_provider::get_data(id).await;
     Template::render(
         "sets",

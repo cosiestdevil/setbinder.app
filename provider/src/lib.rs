@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use models::{Card, ScryfallCard, Set, SetsResponse};
 
@@ -13,7 +13,7 @@ pub fn group_by_set(cards: &Vec<Card>) -> HashMap<String, Vec<Card>> {
     grouped_cards
 }
 
-pub async fn process_data(client: &reqwest::Client, cards: Vec<Card>) -> Vec<Set> {
+pub async fn process_data(client: Arc<reqwest::Client>, cards: Vec<Card>) -> Vec<Set> {
     // Group cards by set_code using a HashMap
     let grouped_cards = group_by_set(&cards);
     //let mut sets = HashMap::new();
