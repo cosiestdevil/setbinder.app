@@ -1,15 +1,16 @@
 use std::sync::Arc;
 
-use futures::{StreamExt, stream};
+use futures::{StreamExt, stream,TryStreamExt};
 use models::*;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-pub async fn get_data(id: String) -> Vec<Set> {
+pub async fn get_data(id: String) -> Result<Vec<Set>, Box<dyn std::error::Error>> {
     let client = Arc::new(Client::new());
     let cards = get_cards(client.clone(), id).await;
-    provider::process_data(client.clone(), cards).await
+    let cards = provider::process_data(client.clone(), cards?).await;
+    Ok(cards)
 }
-pub async fn get_cards(client: Arc<Client>, id:String) -> Vec<Card> {
+pub async fn get_cards(client: Arc<Client>, id: String) -> Result<Vec<Card>,Box<dyn std::error::Error>> {
     let post = ExportRequest {
         fields: vec![
             "card__oracleCard__name".to_string(),
@@ -19,16 +20,16 @@ pub async fn get_cards(client: Arc<Client>, id:String) -> Vec<Card> {
         ],
         game: 1,
         page: 1,
-        page_size: 250,
+        page_size: 2500,
     };
-    let page = get_page(client.clone(), post.clone(), id.clone()).await;
+    let page = get_page(client.clone(), post.clone(), id.clone()).await?;
     let total = page.1;
-    let mut cards: Vec<Card> = page.0;
+    let cards: Vec<Card> = page.0;
     let page_count = (total as f32 / post.page_size as f32).ceil() as u8;
     if page_count <= 1 {
-        return cards;
+        return Ok(cards);
     }
-    let new_cards: Vec<Card> = stream::iter(1..page_count)
+    let cards = stream::iter(1..page_count)
         .map(|it| {
             let mut post = post.clone();
             post.page = it;
@@ -36,16 +37,22 @@ pub async fn get_cards(client: Arc<Client>, id:String) -> Vec<Card> {
         })
         .map(async move |it| {
             let (client, post, id) = it;
-            get_page(client, post, id).await.0
+            get_page(client, post, id).await
         })
         .buffer_unordered(5)
-        .flat_map(stream::iter)
-        .collect()
-        .await;
-    cards.extend(new_cards);
+        .try_fold(cards, |mut acc,(mut cards,_)| async move{
+            
+            acc.append(&mut cards);
+            Ok(acc)
+        }).await;
+    
     cards
 }
-async fn get_page(client: Arc<Client>, post: ExportRequest, id: String) -> (Vec<Card>, usize) {
+async fn get_page(
+    client: Arc<Client>,
+    post: ExportRequest,
+    id: String,
+) -> Result<(Vec<Card>, usize), Box<dyn std::error::Error>> {
     let mut cards: Vec<Card> = vec![];
     let res: ExportResponse = client
         .post(format!(
@@ -53,23 +60,18 @@ async fn get_page(client: Arc<Client>, post: ExportRequest, id: String) -> (Vec<
         ))
         .json(&post)
         .send()
-        .await
-        .unwrap()
+        .await?
         .json()
-        .await
-        .unwrap();
+        .await?;
     let mut rdr = csv::ReaderBuilder::new()
         .has_headers(post.page == 1)
         .from_reader(res.content.as_bytes());
     //let mut rdr = csv::Reader::from_reader(res.content.as_bytes());
     for result in rdr.deserialize() {
-        let record: ArchidektCard = result.expect(format!(
-            "Failed to parse CSV for Archidekt ID {} on page {}",
-            id, post.page
-        ).as_str());
+        let record: ArchidektCard = result?;
         cards.push(record.into());
     }
-    return (cards, res.total_rows as usize);
+    return Ok((cards, res.total_rows as usize));
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct ArchidektCard {
