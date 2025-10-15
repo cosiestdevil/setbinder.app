@@ -4,13 +4,13 @@ use futures::{StreamExt, stream,TryStreamExt};
 use models::*;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-pub async fn get_data(id: String) -> Result<Vec<Set>, Box<dyn std::error::Error>> {
+pub async fn get_data(id: String) -> anyhow::Result<Vec<Set>> {
     let client = Arc::new(Client::new());
     let cards = get_cards(client.clone(), id).await;
     let cards = provider::process_data(client.clone(), cards?).await;
     Ok(cards)
 }
-pub async fn get_cards(client: Arc<Client>, id: String) -> Result<Vec<Card>,Box<dyn std::error::Error>> {
+pub async fn get_cards(client: Arc<Client>, id: String) -> anyhow::Result<Vec<Card>> {
     let post = ExportRequest {
         fields: vec![
             "card__oracleCard__name".to_string(),
@@ -52,7 +52,7 @@ async fn get_page(
     client: Arc<Client>,
     post: ExportRequest,
     id: String,
-) -> Result<(Vec<Card>, usize), Box<dyn std::error::Error>> {
+) -> anyhow::Result<(Vec<Card>, usize)> {
     let mut cards: Vec<Card> = vec![];
     let res: ExportResponse = client
         .post(format!(

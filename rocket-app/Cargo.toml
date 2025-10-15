@@ -22,6 +22,7 @@ serde = { workspace = true}
 serde_json = { workspace = true}
 models = {workspace = true}
 archidekt-provider = {workspace = true}
+anyhow = {workspace = true}
 
 [dependencies.rocket]
 version="0.5.1"
