@@ -70,6 +70,33 @@ fn oracle_identity_is_preserved_and_optional() {
 }
 
 #[test]
+fn rarity_survives_parsing_conversion_and_binary_encoding() {
+    for (raw, expected) in [
+        (Some("common"), models::Rarity::Common),
+        (Some("uncommon"), models::Rarity::Uncommon),
+        (Some("rare"), models::Rarity::Rare),
+        (Some("mythic"), models::Rarity::Mythic),
+        (Some("special"), models::Rarity::Special),
+        (Some("bonus"), models::Rarity::Bonus),
+        (Some("future-rarity"), models::Rarity::Unknown),
+        (None, models::Rarity::Unknown),
+    ] {
+        let mut json: serde_json::Value = serde_json::from_str(CARD).unwrap();
+        if let Some(raw) = raw {
+            json["rarity"] = raw.into();
+        }
+        let source = json.to_string();
+        let cards = build_data::read_cards(source.as_bytes(), true).unwrap();
+        let config = bincode::config::standard();
+        let bytes = bincode::serde::encode_to_vec(&cards, config).unwrap();
+        let (decoded, _): (Vec<models::ScryfallCard>, _) =
+            bincode::serde::decode_from_slice(&bytes, config).unwrap();
+        assert_eq!(decoded[0].rarity, expected);
+        assert_eq!(models::Card::from(decoded[0].clone()).rarity, expected);
+    }
+}
+
+#[test]
 fn reversible_face_identity_survives_bulk_parsing_and_binary_round_trip() {
     let input = r#"{"name":"Hallowed Fountain // Hallowed Fountain","collector_number":"347","set":"ecl","id":"19cba6be-7291-4788-9241-87dad3b68363","card_faces":[{"oracle_id":"f1750962-a87c-49f6-b731-02ae971ac6ea"},{"oracle_id":"f1750962-a87c-49f6-b731-02ae971ac6ea"}]}"#;
     for (source, jsonl) in [(input.to_string(), true), (format!("[{input}]"), false)] {

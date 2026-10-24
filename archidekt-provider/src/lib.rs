@@ -101,6 +101,7 @@ impl From<ArchidektCard> for Card {
             collected: None,
             image: None,
             printing_kind: PrintingKind::Unclassified,
+            rarity: models::Rarity::Unknown,
         }
     }
 }

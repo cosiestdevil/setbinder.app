@@ -201,6 +201,7 @@ mod tests {
             collector_number: number.into(),
             id: format!("{set}-{number}"),
             oracle_id: oracle.map(str::to_owned),
+            rarity: models::Rarity::Unknown,
             image_uris: None,
             card_faces: None,
         }
@@ -214,6 +215,7 @@ mod tests {
             collected: None,
             image: None,
             printing_kind: models::PrintingKind::Unclassified,
+            rarity: models::Rarity::Unknown,
         }
     }
     #[test]
@@ -403,6 +405,7 @@ mod tests {
             collected: None,
             image: None,
             printing_kind: models::PrintingKind::Unclassified,
+            rarity: models::Rarity::Unknown,
         };
         let bulk = models::ScryfallCard {
             name: "Test".into(),
@@ -410,6 +413,7 @@ mod tests {
             collector_number: "1".into(),
             id: "id".into(),
             oracle_id: Some("oracle-id".into()),
+            rarity: models::Rarity::Unknown,
             image_uris: None,
             card_faces: None,
         };
@@ -434,6 +438,7 @@ mod tests {
                 collected: None,
                 image: None,
                 printing_kind: models::PrintingKind::Unclassified,
+                rarity: models::Rarity::Unknown,
             },
             Card {
                 name: "Card 1".to_string(),
@@ -443,6 +448,7 @@ mod tests {
                 collected: None,
                 image: None,
                 printing_kind: models::PrintingKind::Unclassified,
+                rarity: models::Rarity::Unknown,
             },
         ];
         let grouped_cards = super::group_by_set(&cards);
@@ -459,6 +465,7 @@ mod tests {
                 collected: None,
                 image: None,
                 printing_kind: models::PrintingKind::Unclassified,
+                rarity: models::Rarity::Unknown,
             },
             Card {
                 name: "Card 2".to_string(),
@@ -468,6 +475,7 @@ mod tests {
                 collected: None,
                 image: None,
                 printing_kind: models::PrintingKind::Unclassified,
+                rarity: models::Rarity::Unknown,
             },
             Card {
                 name: "Card 1".to_string(),
@@ -477,6 +485,7 @@ mod tests {
                 collected: None,
                 image: None,
                 printing_kind: models::PrintingKind::Unclassified,
+                rarity: models::Rarity::Unknown,
             },
         ];
         let grouped_cards = super::group_by_set(&cards);

@@ -399,6 +399,7 @@ mod tests {
             collected: Some(false),
             image: Some("https://example.com/card.png".into()),
             printing_kind: models::PrintingKind::Base,
+            rarity: models::Rarity::Unknown,
         };
         models::Set {
             code: code.into(),
@@ -465,7 +466,11 @@ mod tests {
         assert!(details.contains("id=\"card-kind\""));
         assert_eq!(details.matches("class=\"card-item\"").count(), 600);
         assert_eq!(details.matches("class=\"card-link\"").count(), 1);
-        assert!(details.contains("href=\"https://scryfall.com/card/19cba6be-7291-4788-9241-87dad3b68363\""));
+        assert!(
+            details.contains(
+                "href=\"https://scryfall.com/card/19cba6be-7291-4788-9241-87dad3b68363\""
+            )
+        );
         assert!(details.contains("target=\"_blank\" rel=\"noopener noreferrer\""));
         assert!(details.len() < 1024 * 1024);
     }

@@ -48,6 +48,43 @@ pub enum PrintingKind {
     Unclassified,
 }
 
+/// Unknown preserves cards with missing or newly introduced rarity values.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Rarity {
+    Common,
+    Uncommon,
+    Rare,
+    Mythic,
+    Special,
+    Bonus,
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+impl Rarity {
+    pub const ALL: [Self; 7] = [
+        Self::Common,
+        Self::Uncommon,
+        Self::Rare,
+        Self::Mythic,
+        Self::Special,
+        Self::Bonus,
+        Self::Unknown,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Common => "Common",
+            Self::Uncommon => "Uncommon",
+            Self::Rare => "Rare",
+            Self::Mythic => "Mythic",
+            Self::Special => "Special",
+            Self::Bonus => "Bonus",
+            Self::Unknown => "Unknown rarity",
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SetsResponse {
     pub data: Vec<ScryfallSet>,
@@ -67,6 +104,8 @@ pub struct Card {
     pub collected: Option<bool>,
     pub image: Option<String>,
     pub printing_kind: PrintingKind,
+    #[serde(default)]
+    pub rarity: Rarity,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -84,6 +123,8 @@ pub struct ScryfallCard {
     pub oracle_id: Option<String>,
     pub image_uris: Option<HashMap<String, String>>,
     pub card_faces: Option<Vec<ScryfallCardFace>>,
+    #[serde(default)]
+    pub rarity: Rarity,
 }
 impl ScryfallCard {
     /// Reversible printings store identity on their faces. Only use that
@@ -128,6 +169,7 @@ impl From<ScryfallCard> for Card {
             scryfall_id: Some(value.id),
             collected: Some(false),
             printing_kind: PrintingKind::Unclassified,
+            rarity: value.rarity,
             image, //: image.map(|i| format!("/scryfall-thumb.webp?url={}", urlencoding::encode(&i.clone())))
         }
     }
