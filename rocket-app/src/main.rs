@@ -426,7 +426,9 @@ mod tests {
     }
     #[get("/details-fixture")]
     fn details_fixture() -> Template {
-        Template::render("set-details", set_view(large_set("tst", 600), true))
+        let mut set = large_set("tst", 600);
+        set.cards[0].scryfall_id = Some("19cba6be-7291-4788-9241-87dad3b68363".into());
+        Template::render("set-details", set_view(set, true))
     }
     #[rocket::async_test]
     async fn large_collection_overview_omits_card_payloads() {
@@ -462,6 +464,9 @@ mod tests {
         assert!(!details.contains("<script>"));
         assert!(details.contains("id=\"card-kind\""));
         assert_eq!(details.matches("class=\"card-item\"").count(), 600);
+        assert_eq!(details.matches("class=\"card-link\"").count(), 1);
+        assert!(details.contains("href=\"https://scryfall.com/card/19cba6be-7291-4788-9241-87dad3b68363\""));
+        assert!(details.contains("target=\"_blank\" rel=\"noopener noreferrer\""));
         assert!(details.len() < 1024 * 1024);
     }
     #[rocket::async_test]
