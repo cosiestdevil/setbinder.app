@@ -1,25 +1,36 @@
 {{#> layout}}
 <section class="collection-heading"><div><p class="eyebrow">YOUR SET BINDER · COLLECTION {{collection_id}}</p><h1>Every set tells a story.</h1><p class="lede">Find the gaps. Watch your collection grow.</p></div><a class="quiet-link external-link" href="https://archidekt.com/collection/v2/{{collection_id}}/" target="_blank" rel="noopener noreferrer">View on Archidekt <span aria-hidden="true">↗</span></a></section>
 <dl class="collection-stats"><div><dt>Sets in collection</dt><dd>{{set_count}}</dd></div><div><dt>Sets complete</dt><dd>{{completed_count}}<span class="stat-detail">every printing matched</span></dd></div><div><dt>Printings matched</dt><dd>{{matched_count}}<span class="stat-detail">across known sets</span></dd></div></dl>
-<div class="section-heading"><h2>Your sets <span class="count-label">{{set_count}}</span></h2><p>Ordered by completion</p></div>
+<div class="section-heading"><h2>Your sets <span class="count-label">{{set_count}}</span></h2><p id="set-results" role="status" aria-live="polite">{{set_count}} sets</p></div>
 <p class="collection-explanation">Completion includes variant printings, counts each collector number once, and does not distinguish foil finishes or quantities. Only sets in your collection are shown.</p>
+<section class="browse-toolbar" aria-label="Find sets" data-set-controls hidden>
+  <label class="search-field" for="set-search"><span class="sr-only">Search sets</span><input type="search" id="set-search" placeholder="Search by set name or code…" maxlength="200" aria-controls="set-list" /></label>
+  <div class="segmented" role="group" aria-label="Set completion filter"><button type="button" data-set-filter="all" aria-pressed="true">All</button><button type="button" data-set-filter="incomplete" aria-pressed="false">Incomplete</button><button type="button" data-set-filter="complete" aria-pressed="false">Complete</button><button type="button" data-set-filter="unavailable" aria-pressed="false">Unavailable</button></div>
+  <label class="sort-control" for="set-sort"><span>Sort by</span><select id="set-sort"><option value="completion">Completion</option><option value="missing">Fewest missing</option><option value="name">Set name</option></select></label>
+</section>
 <div class="set-list" id="set-list">
 {{#each sets}}
-<article class="set-row">
+<article class="set-row" data-set-code="{{code}}" data-set-name="{{#if name}}{{name}}{{else}}{{code}}{{/if}}" data-available="{{available}}" data-complete="{{complete}}" data-completion="{{set_completion}}" data-missing="{{missing_count}}">
   <div class="set-identity"><span class="set-symbol" aria-hidden="true"><i class="ss ss-{{code}}"></i></span><div><span class="set-code">{{code}}</span><h3>{{#if name}}{{name}}{{else}}Unknown set{{/if}}</h3></div></div>
   <div class="set-progress">{{#if available}}<div class="progress-heading"><span class="percentage">{{set_percentage}}</span>{{#if complete}}<span class="badge collected">Complete</span>{{else}}<span class="missing-count">{{missing_count}} missing</span>{{/if}}</div><progress value="{{collected_count}}" max="{{set_count}}" aria-label="{{#if name}}{{name}}{{else}}{{code}}{{/if}} completion">{{set_percentage}}</progress><p class="progress-caption">{{collected_count}} of {{set_count}} printings collected</p>{{else}}<p class="unavailable">Set data unavailable</p><p class="progress-caption">We couldn't match this set to the card database.</p>{{/if}}</div>
   <button class="button view-set" data-open="dialog-{{code}}" aria-haspopup="dialog" aria-label="View {{#if name}}{{name}}{{else}}{{code}}{{/if}}">View set <span aria-hidden="true">↗</span></button>
-  <template id="dialog-{{code}}">
+  <template id="dialog-{{code}}" data-set-code="{{code}}">
     <header class="modal-header"><div><p class="eyebrow">{{code}} · SET DETAILS</p><h2 id="dialog-title">{{#if name}}{{name}}{{else}}Unknown set{{/if}}</h2><p>{{#if available}}{{collected_count}} of {{set_count}} collected · {{missing_count}} missing{{else}}Set data unavailable{{/if}}</p></div><button class="icon-button" data-close aria-label="Close set details">✕</button></header>
+    {{#if available}}<section class="card-toolbar" aria-label="Find cards">
+      <label class="search-field" for="card-search"><span class="sr-only">Search cards</span><input type="search" id="card-search" placeholder="Card name or collector number…" maxlength="200" aria-controls="card-list" /></label>
+      <div class="card-options"><div class="segmented" role="group" aria-label="Card ownership filter"><button type="button" data-card-filter="all" aria-pressed="true">All</button><button type="button" data-card-filter="missing" aria-pressed="false">Missing</button><button type="button" data-card-filter="collected" aria-pressed="false">Collected</button></div><div class="segmented view-switch" role="group" aria-label="Card display"><button type="button" data-card-view="grid" aria-pressed="true">Grid</button><button type="button" data-card-view="list" aria-pressed="false">Checklist</button></div></div>
+      <p class="result-count" id="card-results" role="status" aria-live="polite">{{set_count}} cards</p>
+    </section>{{/if}}
     <div class="modal-body">
-      {{#if available}}<ul class="card-grid">
-        {{#each cards}}<li class="card-item"><figure><div class="card-art">{{#if image}}<img loading="lazy" width="146" height="204" src="{{image}}" alt="{{name}}" />{{else}}<div class="art-placeholder">Artwork unavailable</div>{{/if}}<span class="badge {{#if collected}}collected{{else}}missing{{/if}}">{{#if collected}}✓ Collected{{else}}Missing{{/if}}</span></div><figcaption><span class="collector-number">#{{collector_number}}</span><span class="card-name">{{name}}</span></figcaption></figure></li>{{/each}}
-      </ul>{{else}}<div class="empty-state"><h3>This set isn't in our card database yet.</h3><p>Your collection is safe. Completion will be available when we can match its printings.</p></div>{{/if}}
+      {{#if available}}<ul class="card-grid" id="card-list">
+        {{#each cards}}<li class="card-item" data-card-name="{{name}}" data-card-number="{{collector_number}}" data-collected="{{#if collected}}true{{else}}false{{/if}}"><figure><div class="card-art">{{#if image}}<img loading="lazy" width="146" height="204" src="{{image}}" alt="{{name}}" />{{else}}<div class="art-placeholder">Artwork unavailable</div>{{/if}}<span class="badge {{#if collected}}collected{{else}}missing{{/if}}">{{#if collected}}✓ Collected{{else}}Missing{{/if}}</span></div><figcaption><span class="collector-number">#{{collector_number}}</span><span class="card-name">{{name}}</span></figcaption></figure></li>{{/each}}
+      </ul><div class="empty-state" id="card-empty" hidden><h3>No matching cards.</h3><p>Try another name, collector number, or ownership filter.</p><button class="button" data-reset-cards>Reset card filters</button></div>{{else}}<div class="empty-state"><h3>This set isn't in our card database yet.</h3><p>Your collection is safe. Completion will be available when we can match its printings.</p></div>{{/if}}
     </div>
   </template>
 </article>
 {{else}}<div class="empty-state"><h3>A fresh binder.</h3><p>No cards were found in this collection. Add some cards on Archidekt, then return here.</p><a class="button" href="/">Try another collection</a></div>{{/each}}
 </div>
+<div class="empty-state" id="set-empty" hidden><h3>No sets match this view.</h3><p>Try another search or completion filter.</p><button class="button" id="reset-sets">Reset set filters</button></div>
 <dialog id="set-dialog" aria-labelledby="dialog-title"></dialog>
 <noscript><p class="field-error">Enable JavaScript to open set details and change appearance.</p></noscript>
 {{/layout}}

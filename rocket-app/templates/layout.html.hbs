@@ -13,7 +13,7 @@
     </script>
     <link href="https://cdn.jsdelivr.net/npm/keyrune@3.19.0/css/keyrune.css" rel="stylesheet" />
     <link href="/style.css" rel="stylesheet" />
-    <script src="/app.js" defer></script>
+    <script src="/app.js" type="module"></script>
 </head>
 <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -21,7 +21,7 @@
       <a class="brand" href="/" aria-label="Set Binder home"><span class="brand-mark" aria-hidden="true">S<span>B</span></span>Set Binder<span class="brand-caption">A home for every printing</span></a>
       <div class="header-actions">
         <a class="quiet-link" href="/">Change collection</a>
-        <label class="theme-control"><span class="sr-only">Appearance</span><select id="theme" aria-label="Appearance"><option value="system">System theme</option><option value="light">Light theme</option><option value="dark">Dark theme</option></select></label>
+        <label class="theme-control"><span class="sr-only">Appearance</span><select id="theme" aria-label="Appearance"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
       </div>
     </header>
     <main id="main" class="page">{{> @partial-block}}</main>

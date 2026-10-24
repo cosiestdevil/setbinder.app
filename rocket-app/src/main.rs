@@ -136,11 +136,18 @@ fn app_js() -> (ContentType, &'static str) {
     (ContentType::JavaScript, APP_JS)
 }
 
+const BROWSE_JS: &str = include_str!("../static/browse.mjs");
+#[get("/browse.mjs")]
+fn browse_js() -> (ContentType, &'static str) {
+    (ContentType::JavaScript, BROWSE_JS)
+}
+
 #[launch]
 fn rocket() -> _ {
-    rocket::build()
-        .attach(templates())
-        .mount("/", routes![archidekt, index, process_url, style, app_js])
+    rocket::build().attach(templates()).mount(
+        "/",
+        routes![archidekt, index, process_url, style, app_js, browse_js],
+    )
 }
 #[cfg(debug_assertions)]
 fn templates() -> impl Fairing {

@@ -177,3 +177,42 @@ figcaption { display: flex; gap: 8px; font-size: 11px; margin-top: 10px; line-he
   .card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 16px; }
 }
 @media (prefers-reduced-motion: no-preference) { .button, .icon-button { transition: background .15s, border-color .15s; } }
+.browse-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 0 0 22px; }
+.search-field { margin: 0; flex: 1; min-width: 210px; }
+.search-field input { background: var(--surface); }
+.segmented { display: inline-flex; padding: 3px; gap: 2px; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; }
+.segmented button { min-height: 38px; padding: 7px 12px; background: transparent; color: var(--muted); border: 0; border-radius: 3px; font-size: 11px; }
+.segmented button:hover { color: var(--ink); background: var(--bg); }
+.segmented button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 650; }
+.sort-control { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 11px; color: var(--muted); font-weight: 400; }
+.sort-control select { font-size: 12px; min-height: 44px; }
+.card-toolbar { padding: 20px 30px 14px; border-bottom: 1px solid var(--line); flex-shrink: 0; background: var(--surface); }
+.card-toolbar input { background: var(--bg); }
+.card-options { display: flex; justify-content: space-between; gap: 12px; margin-top: 12px; }
+.result-count { font-size: 11px; color: var(--muted); margin-top: 12px; }
+.checklist { display: block; }
+.checklist .card-item { border-bottom: 1px solid var(--line); padding-block: 12px; }
+.checklist figure { display: flex; align-items: center; gap: 18px; }
+.checklist .card-art { order: 2; margin-left: auto; flex-shrink: 0; }
+.checklist .card-art img, .checklist .art-placeholder { display: none; }
+.checklist .badge { position: static; box-shadow: none; }
+.checklist figcaption { margin: 0; font-size: 13px; align-items: baseline; gap: 18px; }
+.checklist .collector-number { min-width: 40px; }
+@media (max-width: 900px) { .browse-toolbar .search-field { flex-basis: 100%; } }
+@media (max-width: 650px) {
+  .browse-toolbar { gap: 12px; }
+  .browse-toolbar > .segmented { width: 100%; }
+  .browse-toolbar > .segmented button { flex: 1; padding-inline: 7px; }
+  .sort-control { width: 100%; justify-content: space-between; }
+  .sort-control select { flex: 1; max-width: 220px; }
+  .card-toolbar { padding: 16px 20px 12px; }
+  .card-options { flex-wrap: wrap; }
+  .card-toolbar .segmented button { min-height: 40px; padding-inline: 10px; }
+  .checklist figure { gap: 10px; }
+  .checklist figcaption { gap: 10px; font-size: 12px; }
+}
+@media (max-width: 650px) {
+  input { font-size: 16px; }
+  .segmented button { min-height: 44px; }
+  .card-toolbar .segmented button { min-height: 44px; }
+}
