@@ -1,5 +1,5 @@
 {{#> layout}}
-<section class="collection-heading"><div><p class="eyebrow">YOUR SET BINDER · COLLECTION {{collection_id}}</p><h1>Every set tells a story.</h1><p class="lede">Find the gaps. Watch your collection grow.</p></div><a class="quiet-link external-link" href="https://archidekt.com/collection/v2/{{collection_id}}/" target="_blank" rel="noopener noreferrer">View on Archidekt <span aria-hidden="true">↗</span></a></section>
+<section class="collection-heading"><div><p class="eyebrow">YOUR SET BINDER · COLLECTION {{collection_id}}</p><h1>Every set tells a story.</h1><p class="lede">Find the gaps. Watch your collection grow.</p></div><a class="quiet-link external-link" href="{{collection_url}}" target="_blank" rel="noopener noreferrer">View on {{provider_name}} <span aria-hidden="true">↗</span></a></section>
 <div data-share-tools><div class="copy-actions"><button type="button" class="button" data-copy-view>Copy link to this view</button><span class="copy-status" data-copy-status role="status" aria-live="polite"></span></div><label class="copy-fallback" data-copy-fallback hidden>Copy this link<textarea readonly rows="2" spellcheck="false"></textarea></label></div>
 <dl class="collection-stats"><div><dt>Sets in collection</dt><dd>{{set_count}}</dd></div><div><dt>Base sets complete</dt><dd>{{completed_count}}<span class="stat-detail">all base printings matched</span></dd></div><div><dt>Printings matched</dt><dd>{{matched_count}}<span class="stat-detail">across known sets</span></dd></div></dl>
 <div class="section-heading"><h2>Your sets <span class="count-label">{{set_count}}</span></h2><p id="set-results" role="status" aria-live="polite">{{set_count}} sets</p></div>
@@ -15,7 +15,7 @@
 <article class="set-row" data-set-code="{{code}}" data-set-name="{{#if name}}{{name}}{{else}}{{code}}{{/if}}" data-available="{{base_available}}" data-complete="{{complete}}" data-completion="{{base_completion}}" data-missing="{{missing_count}}">
   <div class="set-identity"><span class="set-symbol" aria-hidden="true"><i class="ss ss-{{code}}"></i></span><div><span class="set-code">{{code}}</span><h3>{{#if name}}{{name}}{{else}}Unknown set{{/if}}</h3></div></div>
   <div class="set-progress">{{> progress}}</div>
-  <button class="button view-set" data-open="{{code}}" data-details-url="/archidekt/{{../collection_id}}/sets/{{code}}" aria-haspopup="dialog" aria-label="View {{#if name}}{{name}}{{else}}{{code}}{{/if}}">View set <span aria-hidden="true">↗</span></button>
+  <button class="button view-set" data-open="{{code}}" data-details-url="/{{../provider_slug}}/{{../collection_id}}/sets/{{code}}" aria-haspopup="dialog" aria-label="View {{#if name}}{{name}}{{else}}{{code}}{{/if}}">View set <span aria-hidden="true">↗</span></button>
 </article>
 {{else}}<div class="empty-state"><h3>A fresh binder.</h3><p>No cards were found in this collection. Add some cards on Archidekt, then return here.</p><a class="button" href="/">Try another collection</a></div>{{/each}}
 </div>

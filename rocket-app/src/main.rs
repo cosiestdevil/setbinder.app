@@ -7,6 +7,45 @@ use rocket_dyn_templates::{Template, context};
 #[macro_use]
 extern crate rocket;
 
+#[derive(Clone, Copy, Debug)]
+enum Source {
+    Archidekt,
+    Moxfield,
+}
+impl Source {
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "archidekt" => Some(Self::Archidekt),
+            "moxfield" => Some(Self::Moxfield),
+            _ => None,
+        }
+    }
+    fn slug(self) -> &'static str {
+        match self {
+            Self::Archidekt => "archidekt",
+            Self::Moxfield => "moxfield",
+        }
+    }
+    fn name(self) -> &'static str {
+        match self {
+            Self::Archidekt => "Archidekt",
+            Self::Moxfield => "Moxfield",
+        }
+    }
+    fn valid_id(self, id: &str) -> bool {
+        match self {
+            Self::Archidekt => !id.is_empty() && id.bytes().all(|c| c.is_ascii_digit()),
+            Self::Moxfield => moxfield_provider::valid_id(id),
+        }
+    }
+    fn url(self, id: &str) -> String {
+        match self {
+            Self::Archidekt => format!("https://archidekt.com/collection/v2/{id}/"),
+            Self::Moxfield => format!("https://moxfield.com/collection/{id}"),
+        }
+    }
+}
+
 #[get("/")]
 fn index() -> Template {
     entry_page("", None)
@@ -17,7 +56,7 @@ fn entry_page(url: &str, error: Option<&str>) -> Template {
         "index",
         context! {
             title: "Set Binder · A home for every printing",
-            description: "See your Magic collection by set. Track your progress and find missing printings with your public Archidekt collection.",
+            description: "See your Magic collection by set. Track your progress and find missing printings with your public Archidekt or Moxfield collection.",
             url, error,
         },
     )
@@ -33,23 +72,29 @@ fn process_url(
     form: Form<CollectionForm>,
 ) -> Result<Redirect, rocket::response::status::Custom<Template>> {
     let url = form.url.trim();
-    let regex = regex::Regex::new(
-        r"^https?://(?:www\.)?archidekt\.com/collection/v2/([0-9]+)/?(?:[?#].*)?$",
-    )
-    .unwrap();
-    if let Some(captures) = regex.captures(url) {
-        Ok(Redirect::to(format!("/archidekt/{}", &captures[1])))
-    } else {
-        Err(rocket::response::status::Custom(
-            rocket::http::Status::BadRequest,
-            entry_page(
-                url,
-                Some(
-                    "Use a collection link such as https://archidekt.com/collection/v2/1234. Check that you copied the collection URL, rather than a deck link.",
-                ),
-            ),
-        ))
+    for (source, pattern) in [
+        (
+            Source::Archidekt,
+            r"^https?://(?:www\.)?archidekt\.com/collection/v2/([0-9]+)/?(?:[?#].*)?$",
+        ),
+        (
+            Source::Moxfield,
+            r"^https?://(?:www\.)?moxfield\.com/collection/([A-Za-z0-9_-]{22})/?(?:[?#].*)?$",
+        ),
+    ] {
+        if let Some(captures) = regex::Regex::new(pattern).unwrap().captures(url) {
+            return Ok(Redirect::to(format!("/{}/{}", source.slug(), &captures[1])));
+        }
     }
+    Err(rocket::response::status::Custom(
+        rocket::http::Status::BadRequest,
+        entry_page(
+            url,
+            Some(
+                "Use a public Archidekt or Moxfield collection link. Copy the collection URL rather than a deck link.",
+            ),
+        ),
+    ))
 }
 
 fn error_page(
@@ -63,38 +108,65 @@ fn error_page(
         Template::render(
             "error",
             context! {
-                title: "Collection unavailable · Set Binder", description: "Help loading your Archidekt collection.", heading, message, retry_url,
+                title: "Collection unavailable · Set Binder", description: "Help loading your collection.", heading, message, retry_url,
             },
         ),
     )
 }
 
-#[get("/archidekt/<id>")]
-async fn archidekt(id: &str) -> Result<Template, rocket::response::status::Custom<Template>> {
+#[get("/<source>/<id>")]
+async fn collection(
+    source: &str,
+    id: &str,
+) -> Result<Template, rocket::response::status::Custom<Template>> {
     use rocket::http::Status;
-    if id.is_empty() || !id.bytes().all(|byte| byte.is_ascii_digit()) {
+    let source = Source::parse(source).ok_or_else(|| {
+        error_page(
+            Status::NotFound,
+            "Unknown collection provider.",
+            "Use an Archidekt or Moxfield collection link.",
+            None,
+        )
+    })?;
+    if !source.valid_id(id) {
+        let message = match source {
+            Source::Archidekt => {
+                "Enter a numeric Archidekt collection ID, or paste your collection link on the home page."
+            }
+            Source::Moxfield => {
+                "Paste a public Moxfield collection link on the home page. Its collection ID must contain 22 letters, digits, underscores or hyphens."
+            }
+        };
         return Err(error_page(
             Status::BadRequest,
             "Let's find your collection.",
-            "Enter a numeric Archidekt collection ID, or paste your collection link on the home page.",
+            message,
             None,
         ));
     }
-    let sets = archidekt_provider::get_data(id).await.map_err(|error| {
-        eprintln!("Unable to load collection {id}: {error}");
+    let result = match source {
+        Source::Archidekt => archidekt_provider::get_data(id).await,
+        Source::Moxfield => moxfield_provider::get_data(id).await,
+    };
+    let sets = result.map_err(|error| {
+        eprintln!("Unable to load {} collection {id}: {error}", source.name());
         let unavailable = matches!(&error, provider::Error::Http(http)
-            if http.url().and_then(|url| url.host_str()) == Some("archidekt.com")
+            if http.url().and_then(|url| url.host_str()) == Some(match source { Source::Archidekt => "archidekt.com", Source::Moxfield => "api2.moxfield.com" })
                 && http.status().is_some_and(|status| matches!(status.as_u16(), 401 | 403 | 404)));
         if unavailable {
-            error_page(Status::NotFound, "This binder isn't available.", "Check that the collection ID is correct and your Archidekt collection is public.", None)
+            let message = match source {
+                Source::Archidekt => "Check that the collection ID is correct and your Archidekt collection is public.",
+                Source::Moxfield => "Check that your Moxfield collection is public and the link is correct. Moxfield may also restrict automated access.",
+            };
+            error_page(Status::NotFound, "This binder isn't available.", message, None)
         } else {
-            error_page(Status::BadGateway, "Your binder needs a moment.", "We couldn't load collection data from Archidekt or Scryfall. Please try again in a moment.", Some(format!("/archidekt/{id}")))
+            error_page(Status::BadGateway, "Your binder needs a moment.", &format!("We couldn't load collection data from {} or Scryfall. Please try again in a moment.", source.name()), Some(format!("/{}/{id}", source.slug())))
         }
     })?;
-    Ok(collection_page(id, sets))
+    Ok(collection_page(source, id, sets))
 }
 
-fn collection_page(id: &str, sets: Vec<models::Set>) -> Template {
+fn collection_page(source: Source, id: &str, sets: Vec<models::Set>) -> Template {
     let set_count = sets.len();
     let completed_count = sets
         .iter()
@@ -107,7 +179,8 @@ fn collection_page(id: &str, sets: Vec<models::Set>) -> Template {
     Template::render(
         "sets",
         context! {
-            title: "Your collection · Set Binder", description: "Set completion for your Archidekt collection.",
+            title: "Your collection · Set Binder", description: format!("Set completion for your {} collection.", source.name()),
+            provider_name: source.name(), provider_slug: source.slug(), collection_url: source.url(id),
             collection_id: id, sets, set_count, completed_count, matched_count,
         },
     )
@@ -177,33 +250,37 @@ fn set_view(mut set: models::Set, include_cards: bool) -> serde_json::Value {
     value
 }
 
-#[get("/archidekt/<id>/sets/<code>")]
+#[get("/<source>/<id>/sets/<code>")]
 async fn set_details(
+    source: &str,
     id: &str,
     code: &str,
 ) -> Result<Template, rocket::response::status::Custom<&'static str>> {
     use rocket::{http::Status, response::status::Custom};
-    if id.is_empty()
-        || !id.bytes().all(|byte| byte.is_ascii_digit())
+    let source =
+        Source::parse(source).ok_or(Custom(Status::NotFound, "Unknown collection provider."))?;
+    if !source.valid_id(id)
         || code.is_empty()
         || code.len() > 16
         || !code.bytes().all(|byte| byte.is_ascii_alphanumeric())
     {
         return Err(Custom(Status::BadRequest, "Invalid collection or set."));
     }
-    let set = archidekt_provider::get_set_data(id, code)
-        .await
-        .map_err(|error| {
-            eprintln!("Unable to load set {code} for collection {id}: {error}");
-            Custom(
-                Status::BadGateway,
-                "Unable to load this set. Please try again.",
-            )
-        })?
-        .ok_or(Custom(
-            Status::NotFound,
-            "This set is no longer in the collection.",
-        ))?;
+    let set = match source {
+        Source::Archidekt => archidekt_provider::get_set_data(id, code).await,
+        Source::Moxfield => moxfield_provider::get_set_data(id, code).await,
+    }
+    .map_err(|error| {
+        eprintln!("Unable to load set {code} for collection {id}: {error}");
+        Custom(
+            Status::BadGateway,
+            "Unable to load this set. Please try again.",
+        )
+    })?
+    .ok_or(Custom(
+        Status::NotFound,
+        "This set is no longer in the collection.",
+    ))?;
     Ok(Template::render("set-details", set_view(set, true)))
 }
 
@@ -230,7 +307,7 @@ fn rocket() -> _ {
     rocket::build().attach(templates()).mount(
         "/",
         routes![
-            archidekt,
+            collection,
             set_details,
             index,
             process_url,
@@ -274,6 +351,117 @@ mod templates {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[rocket::async_test]
+    async fn moxfield_collection_urls_redirect_and_invalid_inputs_do_not_fetch() {
+        use rocket::http::{ContentType, Status};
+        let client = rocket::local::asynchronous::Client::tracked(rocket())
+            .await
+            .unwrap();
+        for (input, expected) in [
+            (
+                "https://moxfield.com/collection/AbCdEfGhIjKlMnOpQrStUw",
+                Some("/moxfield/AbCdEfGhIjKlMnOpQrStUw"),
+            ),
+            (
+                "http://www.moxfield.com/collection/AbCdEfGhIjKlMnOpQrSt_-/?view=grid#cards",
+                Some("/moxfield/AbCdEfGhIjKlMnOpQrSt_-"),
+            ),
+            ("https://moxfield.com/decks/AbCdEfGhIjKlMnOpQrStUw", None),
+            ("https://moxfield.com/collection/short", None),
+            (
+                "https://moxfield.com.evil.example/collection/AbCdEfGhIjKlMnOpQrStUw",
+                None,
+            ),
+            (
+                "https://evil.example/moxfield.com/collection/AbCdEfGhIjKlMnOpQrStUw",
+                None,
+            ),
+            (
+                "https://moxfield.com/collection/AbCdEfGhIjKlMnOpQrStUw/extra",
+                None,
+            ),
+        ] {
+            let body = reqwest::Url::parse_with_params("http://localhost/", &[("url", input)])
+                .unwrap()
+                .query()
+                .unwrap()
+                .to_string();
+            let response = client
+                .post("/")
+                .header(ContentType::Form)
+                .body(body)
+                .dispatch()
+                .await;
+            assert_eq!(
+                response.status(),
+                if expected.is_some() {
+                    Status::SeeOther
+                } else {
+                    Status::BadRequest
+                },
+                "{input}"
+            );
+            assert_eq!(response.headers().get_one("Location"), expected);
+        }
+        for path in [
+            "/moxfield/short",
+            "/moxfield/short/sets/ecl",
+            "/moxfield/AbCdEfGhIjKlMnOpQrStUw/sets/bad-code",
+        ] {
+            assert_eq!(
+                client.get(path).dispatch().await.status(),
+                Status::BadRequest
+            );
+        }
+        assert_eq!(
+            client.get("/unknown/1234").dispatch().await.status(),
+            Status::NotFound
+        );
+        assert_eq!(
+            client
+                .get("/unknown/1234/sets/ecl")
+                .dispatch()
+                .await
+                .status(),
+            Status::NotFound
+        );
+    }
+    #[get("/moxfield-fixture")]
+    fn moxfield_fixture() -> Template {
+        collection_page(
+            Source::Moxfield,
+            "AbCdEfGhIjKlMnOpQrStUw",
+            vec![large_set("ecl", 1)],
+        )
+    }
+    #[rocket::async_test]
+    async fn moxfield_pages_use_provider_specific_links_and_lazy_details() {
+        let client = rocket::local::asynchronous::Client::tracked(
+            rocket().mount("/", routes![moxfield_fixture]),
+        )
+        .await
+        .unwrap();
+        let html = client
+            .get("/moxfield-fixture")
+            .dispatch()
+            .await
+            .into_string()
+            .await
+            .unwrap();
+        assert!(html.contains("href=\"https://moxfield.com/collection/AbCdEfGhIjKlMnOpQrStUw\""));
+        assert!(html.contains("View on Moxfield"));
+        assert!(html.contains("data-details-url=\"/moxfield/AbCdEfGhIjKlMnOpQrStUw/sets/ecl\""));
+        assert!(!html.contains("/archidekt/AbCdEfGhIjKlMnOpQrStUw"));
+        assert!(!html.contains("CARD_PAYLOAD_MUST_NOT_BE_IN_OVERVIEW"));
+        let home = client
+            .get("/")
+            .dispatch()
+            .await
+            .into_string()
+            .await
+            .unwrap();
+        assert!(home.contains("public Archidekt or Moxfield collection"));
+    }
     #[rocket::async_test]
     async fn invalid_collection_id_returns_helpful_bad_request() {
         let client = rocket::local::asynchronous::Client::tracked(rocket())
@@ -336,6 +524,7 @@ mod tests {
             },
         };
         collection_page(
+            Source::Archidekt,
             "1234",
             vec![make_set("known", 2, 2), make_set("unknown", 0, 0)],
         )
@@ -377,6 +566,7 @@ mod tests {
             },
         };
         collection_page(
+            Source::Archidekt,
             "1234",
             vec![
                 make_set("incomplete", 5, 4, 5, 1, 0),
@@ -453,6 +643,7 @@ mod tests {
     #[get("/large-fixture")]
     fn large_fixture() -> Template {
         collection_page(
+            Source::Archidekt,
             "1234",
             (0..100)
                 .map(|index| large_set(&format!("s{index}"), 600))
