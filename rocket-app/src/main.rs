@@ -103,34 +103,7 @@ fn collection_page(id: &str, sets: Vec<models::Set>) -> Template {
         })
         .count();
     let matched_count: usize = sets.iter().map(|set| set.collected_count).sum();
-    let sets: Vec<serde_json::Value> = sets
-        .into_iter()
-        .map(|set| {
-            let available = set.set_count > 0;
-            let base_available = set.progress.base_count > 0;
-            let missing_count = set
-                .progress
-                .base_count
-                .saturating_sub(set.progress.base_collected);
-            let complete = base_available && missing_count == 0;
-            let base_completion = set.progress.base_completion();
-            let variant_bonus = set.progress.variant_bonus();
-            // Both segments share a scale, fitted into the row without clipping bonuses >100%.
-            let base_track_width = 100.0 / (1.0 + variant_bonus);
-            let mut value =
-                serde_json::to_value(set).expect("Set contains only serializable fields");
-            value["available"] = available.into();
-            value["base_available"] = base_available.into();
-            value["base_percentage"] = format!("{:.2}%", base_completion * 100.0).into();
-            value["bonus_percentage"] = format!("{:.2}%", variant_bonus * 100.0).into();
-            value["base_completion"] = base_completion.into();
-            value["base_track_width"] = format!("{base_track_width:.4}").into();
-            value["has_bonus"] = (variant_bonus > 0.0).into();
-            value["missing_count"] = missing_count.into();
-            value["complete"] = complete.into();
-            value
-        })
-        .collect();
+    let sets: Vec<serde_json::Value> = sets.into_iter().map(|set| set_view(set, false)).collect();
     Template::render(
         "sets",
         context! {
@@ -138,6 +111,66 @@ fn collection_page(id: &str, sets: Vec<models::Set>) -> Template {
             collection_id: id, sets, set_count, completed_count, matched_count,
         },
     )
+}
+
+fn set_view(mut set: models::Set, include_cards: bool) -> serde_json::Value {
+    let available = set.set_count > 0;
+    let base_available = set.progress.base_count > 0;
+    let missing_count = set
+        .progress
+        .base_count
+        .saturating_sub(set.progress.base_collected);
+    let complete = base_available && missing_count == 0;
+    let base_completion = set.progress.base_completion();
+    let variant_bonus = set.progress.variant_bonus();
+    // Both segments share a scale, fitted into the row without clipping bonuses >100%.
+    let base_track_width = 100.0 / (1.0 + variant_bonus);
+    // Ownership is already reflected on each card; never serialize it twice.
+    set.collected_cards.clear();
+    if !include_cards {
+        set.cards.clear();
+    }
+    let mut value = serde_json::to_value(set).expect("Set contains only serializable fields");
+    value["available"] = available.into();
+    value["base_available"] = base_available.into();
+    value["base_percentage"] = format!("{:.2}%", base_completion * 100.0).into();
+    value["bonus_percentage"] = format!("{:.2}%", variant_bonus * 100.0).into();
+    value["base_completion"] = base_completion.into();
+    value["base_track_width"] = format!("{base_track_width:.4}").into();
+    value["has_bonus"] = (variant_bonus > 0.0).into();
+    value["missing_count"] = missing_count.into();
+    value["complete"] = complete.into();
+    value
+}
+
+#[get("/archidekt/<id>/sets/<code>")]
+async fn set_details(
+    id: &str,
+    code: &str,
+) -> Result<Template, rocket::response::status::Custom<&'static str>> {
+    use rocket::{http::Status, response::status::Custom};
+    if id.is_empty()
+        || !id.bytes().all(|byte| byte.is_ascii_digit())
+        || code.is_empty()
+        || code.len() > 16
+        || !code.bytes().all(|byte| byte.is_ascii_alphanumeric())
+    {
+        return Err(Custom(Status::BadRequest, "Invalid collection or set."));
+    }
+    let set = archidekt_provider::get_set_data(id, code)
+        .await
+        .map_err(|error| {
+            eprintln!("Unable to load set {code} for collection {id}: {error}");
+            Custom(
+                Status::BadGateway,
+                "Unable to load this set. Please try again.",
+            )
+        })?
+        .ok_or(Custom(
+            Status::NotFound,
+            "This set is no longer in the collection.",
+        ))?;
+    Ok(Template::render("set-details", set_view(set, true)))
 }
 
 const CSS: &str = include_str!(concat!(env!("OUT_DIR"), "/styles.min.css"));
@@ -162,7 +195,15 @@ fn browse_js() -> (ContentType, &'static str) {
 fn rocket() -> _ {
     rocket::build().attach(templates()).mount(
         "/",
-        routes![archidekt, index, process_url, style, app_js, browse_js],
+        routes![
+            archidekt,
+            set_details,
+            index,
+            process_url,
+            style,
+            app_js,
+            browse_js
+        ],
     )
 }
 #[cfg(debug_assertions)]
@@ -348,5 +389,94 @@ mod tests {
             incomplete.contains("data-complete=\"false\""),
             "a variant bonus must not finish the base set"
         );
+    }
+    fn large_set(code: &str, count: usize) -> models::Set {
+        let card = models::Card {
+            name: "CARD_PAYLOAD_MUST_NOT_BE_IN_OVERVIEW <script>".repeat(3),
+            set_code: code.into(),
+            collector_number: "1".into(),
+            scryfall_id: None,
+            collected: Some(false),
+            image: Some("https://example.com/card.png".into()),
+            printing_kind: models::PrintingKind::Base,
+        };
+        models::Set {
+            code: code.into(),
+            name: Some(format!("Set {code}")),
+            cards: vec![card; count],
+            collected_cards: vec![],
+            set_percentage: "0%".into(),
+            set_count: count,
+            collected_count: 0,
+            set_completion: 0.0,
+            progress: models::PrintingProgress {
+                base_count: count,
+                ..Default::default()
+            },
+        }
+    }
+    #[get("/large-fixture")]
+    fn large_fixture() -> Template {
+        collection_page(
+            "1234",
+            (0..100)
+                .map(|index| large_set(&format!("s{index}"), 600))
+                .collect(),
+        )
+    }
+    #[get("/details-fixture")]
+    fn details_fixture() -> Template {
+        Template::render("set-details", set_view(large_set("tst", 600), true))
+    }
+    #[rocket::async_test]
+    async fn large_collection_overview_omits_card_payloads() {
+        let client = rocket::local::asynchronous::Client::tracked(
+            rocket().mount("/", routes![large_fixture, details_fixture]),
+        )
+        .await
+        .unwrap();
+        let html = client
+            .get("/large-fixture")
+            .dispatch()
+            .await
+            .into_string()
+            .await
+            .unwrap();
+        assert!(
+            html.len() < 1024 * 1024,
+            "60,000 cards must still produce an overview below 1 MiB; got {} bytes",
+            html.len()
+        );
+        assert!(!html.contains("CARD_PAYLOAD_MUST_NOT_BE_IN_OVERVIEW"));
+        assert!(!html.contains("<img"));
+        assert!(html.contains("data-details-url=\"/archidekt/1234/sets/s0\""));
+        let details = client
+            .get("/details-fixture")
+            .dispatch()
+            .await
+            .into_string()
+            .await
+            .unwrap();
+        assert!(details.contains("CARD_PAYLOAD_MUST_NOT_BE_IN_OVERVIEW"));
+        assert!(details.contains("&lt;script&gt;"));
+        assert!(!details.contains("<script>"));
+        assert!(details.contains("id=\"card-kind\""));
+        assert_eq!(details.matches("class=\"card-item\"").count(), 600);
+        assert!(details.len() < 1024 * 1024);
+    }
+    #[rocket::async_test]
+    async fn invalid_detail_paths_fail_before_upstream_requests() {
+        let client = rocket::local::asynchronous::Client::tracked(rocket())
+            .await
+            .unwrap();
+        for path in [
+            "/archidekt/not-an-id/sets/iko",
+            "/archidekt/1234/sets/bad-code",
+        ] {
+            assert_eq!(
+                client.get(path).dispatch().await.status(),
+                rocket::http::Status::BadRequest
+            );
+        }
     }
 }

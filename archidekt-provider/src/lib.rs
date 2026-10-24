@@ -8,6 +8,22 @@ pub async fn get_data(id: &str) -> Result<Vec<Set>, provider::Error> {
     let cards = get_cards(&client, id).await?;
     provider::process_data(&client, cards).await
 }
+/// Fetch collection ownership, but decode and render only the requested set.
+pub async fn get_set_data(id: &str, code: &str) -> Result<Option<Set>, provider::Error> {
+    let client = Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()?;
+    let mut cards = get_cards(&client, id).await?;
+    cards.retain(|card| card.set_code == code);
+    if cards.is_empty() {
+        return Ok(None);
+    }
+    Ok(provider::process_data(&client, cards)
+        .await?
+        .into_iter()
+        .next())
+}
+
 pub async fn get_cards(client: &Client, id: &str) -> Result<Vec<Card>, provider::Error> {
     get_cards_from_url(
         client,

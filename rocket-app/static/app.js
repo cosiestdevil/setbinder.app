@@ -58,7 +58,7 @@ import { selectSets, matchesCard } from '/browse.mjs';
     const visible = selectSets(rows, setState);
     const visibleElements = new Set(visible.map((row) => row.element));
     rows.forEach(({ element }) => { element.hidden = !visibleElements.has(element); });
-    // Moving existing rows preserves their dialogs and avoids duplicating the card data.
+    // Reorder summary rows without recreating controls or losing focus.
     visible.forEach(({ element }) => setList.append(element));
     pressed(document, 'data-set-filter', setState.filter);
     document.getElementById('set-results').textContent = `${visible.length} of ${rows.length} sets`;
@@ -127,21 +127,48 @@ import { selectSets, matchesCard } from '/browse.mjs';
     });
     updateCards();
   }
+  let detailsRequest;
+  const loadingShell = (button) => {
+    dialog.innerHTML = '<header class="modal-header"><div><p class="eyebrow">SET DETAILS</p><h2 id="dialog-title"></h2></div><button class="icon-button" data-close aria-label="Close set details">✕</button></header><div class="modal-body" aria-busy="true"><p role="status">Loading this set’s cards…</p></div>';
+    dialog.querySelector('h2').textContent = button.closest('.set-row').querySelector('h3').textContent;
+  };
+  async function loadDetails(button) {
+    detailsRequest?.abort();
+    const request = new AbortController();
+    detailsRequest = request;
+    loadingShell(button);
+    if (!dialog.open) dialog.showModal();
+    dialog.querySelector('[data-close]').focus();
+    try {
+      const response = await fetch(button.dataset.detailsUrl, { signal: request.signal, headers: { Accept: 'text/html' } });
+      if (!response.ok) throw new Error('Set details unavailable');
+      const html = await response.text();
+      // Ignore replies for a dialog that was closed or replaced while loading.
+      if (request.signal.aborted || detailsRequest !== request || !dialog.open) return;
+      const fragment = document.createElement('template');
+      fragment.innerHTML = html;
+      dialog.replaceChildren(fragment.content.cloneNode(true));
+      setupCards(button.dataset.open);
+      dialog.querySelector('[data-close]').focus();
+    } catch (error) {
+      if (request.signal.aborted || detailsRequest !== request || !dialog.open) return;
+      const body = dialog.querySelector('.modal-body');
+      body.removeAttribute('aria-busy');
+      body.innerHTML = '<div class="empty-state"><h3>This set could not be loaded.</h3><p>Check your connection and try again. The collection may also have changed.</p><button class="button" data-retry-details>Try again</button></div>';
+      body.querySelector('[data-retry-details]').addEventListener('click', () => loadDetails(button));
+    }
+  }
   document.addEventListener('click', (event) => {
     const button = event.target.closest('[data-open]');
     if (!button) return;
-    const template = document.getElementById(button.dataset.open);
-    if (!template) return;
     opener = button;
-    dialog.replaceChildren(template.content.cloneNode(true));
-    dialog.querySelector('[data-close]').addEventListener('click', () => dialog.close());
-    setupCards(template.dataset.setCode);
-    dialog.showModal();
+    loadDetails(button);
   });
   dialog.addEventListener('click', (event) => {
+    if (event.target.closest('[data-close]')) { dialog.close(); return; }
     if (event.target !== dialog) return;
     const rect = dialog.getBoundingClientRect();
     if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();
   });
-  dialog.addEventListener('close', () => { dialog.replaceChildren(); opener?.focus(); });
+  dialog.addEventListener('close', () => { detailsRequest?.abort(); dialog.replaceChildren(); opener?.focus(); });
 })();
