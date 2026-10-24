@@ -85,6 +85,25 @@ pub struct ScryfallCard {
     pub image_uris: Option<HashMap<String, String>>,
     pub card_faces: Option<Vec<ScryfallCardFace>>,
 }
+impl ScryfallCard {
+    /// Reversible printings store identity on their faces. Only use that
+    /// fallback when every face has the same nonempty Oracle ID.
+    pub fn oracle_identity(&self) -> Option<&str> {
+        if let Some(id) = self.oracle_id.as_deref().filter(|id| !id.trim().is_empty()) {
+            return Some(id);
+        }
+        let faces = self.card_faces.as_ref()?;
+        let id = faces
+            .first()?
+            .oracle_id
+            .as_deref()
+            .filter(|id| !id.trim().is_empty())?;
+        faces
+            .iter()
+            .all(|face| face.oracle_id.as_deref() == Some(id))
+            .then_some(id)
+    }
+}
 impl From<ScryfallCard> for Card {
     fn from(value: ScryfallCard) -> Self {
         let image = value
@@ -116,6 +135,7 @@ impl From<ScryfallCard> for Card {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ScryfallCardFace {
+    pub oracle_id: Option<String>,
     pub image_uris: Option<HashMap<String, String>>,
 }
 #[derive(Serialize, Deserialize)]

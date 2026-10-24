@@ -70,6 +70,23 @@ fn oracle_identity_is_preserved_and_optional() {
 }
 
 #[test]
+fn reversible_face_identity_survives_bulk_parsing_and_binary_round_trip() {
+    let input = r#"{"name":"Hallowed Fountain // Hallowed Fountain","collector_number":"347","set":"ecl","id":"19cba6be-7291-4788-9241-87dad3b68363","card_faces":[{"oracle_id":"f1750962-a87c-49f6-b731-02ae971ac6ea"},{"oracle_id":"f1750962-a87c-49f6-b731-02ae971ac6ea"}]}"#;
+    for (source, jsonl) in [(input.to_string(), true), (format!("[{input}]"), false)] {
+        let cards = build_data::read_cards(source.as_bytes(), jsonl).unwrap();
+        let config = bincode::config::standard();
+        let bytes = bincode::serde::encode_to_vec(&cards, config).unwrap();
+        let (decoded, _): (Vec<models::ScryfallCard>, _) =
+            bincode::serde::decode_from_slice(&bytes, config).unwrap();
+        assert!(decoded[0].oracle_id.is_none());
+        assert_eq!(
+            decoded[0].oracle_identity(),
+            Some("f1750962-a87c-49f6-b731-02ae971ac6ea")
+        );
+    }
+}
+
+#[test]
 fn selected_sets_match_bulk_and_empty_selection_retains_nothing() {
     use std::collections::HashSet;
     let bulk = scryfall::get_bulk();

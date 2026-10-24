@@ -105,11 +105,7 @@ fn classify_set(mut printings: Vec<ScryfallCard>, owned: &[Card]) -> Vec<Card> {
     printings
         .into_iter()
         .map(|printing| {
-            let kind = match printing
-                .oracle_id
-                .as_deref()
-                .filter(|id| !id.trim().is_empty())
-            {
+            let kind = match printing.oracle_identity() {
                 Some(id) if seen_oracles.insert(id.to_owned()) => PrintingKind::Base,
                 Some(_) => PrintingKind::Variant,
                 None => PrintingKind::Unclassified,
@@ -293,6 +289,78 @@ mod tests {
             "variants must not fill the base bar"
         );
         assert_eq!(progress.variant_bonus(), 0.5);
+    }
+    #[test]
+    fn reversible_shock_lands_count_as_variants_of_their_base_printings() {
+        let mut printings = Vec::new();
+        let mut collected = Vec::new();
+        for (index, name) in [
+            "Hallowed Fountain",
+            "Steam Vents",
+            "Blood Crypt",
+            "Overgrown Tomb",
+            "Temple Garden",
+        ]
+        .iter()
+        .enumerate()
+        {
+            let mut base = printing("ecl", &(index + 1).to_string(), Some(name));
+            base.name = name.to_string();
+            let number = (347 + index).to_string();
+            let mut reversible = printing("ecl", &number, None);
+            reversible.name = format!("{name} // {name}");
+            reversible.card_faces = Some(vec![
+                models::ScryfallCardFace {
+                    oracle_id: Some(name.to_string()),
+                    image_uris: None,
+                };
+                2
+            ]);
+            printings.extend([reversible, base]);
+            collected.push(owned("ecl", &number));
+        }
+        let cards = super::classify_set(printings, &collected);
+        assert!(
+            cards[..5]
+                .iter()
+                .all(|card| card.printing_kind == models::PrintingKind::Base)
+        );
+        assert!(
+            cards[5..]
+                .iter()
+                .all(|card| card.printing_kind == models::PrintingKind::Variant)
+        );
+        let progress = super::printing_progress(&cards);
+        assert_eq!((progress.base_count, progress.base_collected), (5, 0));
+        assert_eq!((progress.variant_count, progress.variant_collected), (5, 5));
+        assert_eq!(progress.unclassified_count, 0);
+        assert_eq!(progress.base_completion(), 0.0);
+        assert_eq!(progress.variant_bonus(), 1.0);
+    }
+    #[test]
+    fn face_fallback_requires_unambiguous_identity_and_preserves_top_level_id() {
+        for (top, faces, expected) in [
+            (None, vec![Some("a"), Some("a")], Some("a")),
+            (Some(""), vec![Some("a"), Some("a")], Some("a")),
+            (None, vec![Some("a"), Some("b")], None),
+            (None, vec![Some("a"), None], None),
+            (None, vec![None, Some("a")], None),
+            (None, vec![Some(" "), Some(" ")], None),
+            (None, vec![], None),
+            (Some("top"), vec![Some("a"), Some("b")], Some("top")),
+        ] {
+            let mut card = printing("tst", "1", top);
+            card.card_faces = Some(
+                faces
+                    .into_iter()
+                    .map(|id| models::ScryfallCardFace {
+                        oracle_id: id.map(str::to_owned),
+                        image_uris: None,
+                    })
+                    .collect(),
+            );
+            assert_eq!(card.oracle_identity(), expected);
+        }
     }
     #[test]
     fn classification_is_scoped_to_each_set() {
