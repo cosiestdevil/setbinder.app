@@ -1,4 +1,4 @@
-import { selectSets, matchesCard } from '/browse.mjs';
+import { selectSets, matchesCard, missingCardList } from '/browse.mjs';
 
 (() => {
   'use strict';
@@ -79,6 +79,25 @@ import { selectSets, matchesCard } from '/browse.mjs';
   document.querySelector('[data-set-controls]').hidden = false;
   updateSets();
 
+  async function copyText(text, scope, success) {
+    const status = scope.querySelector('[data-copy-status]');
+    const fallback = scope.querySelector('[data-copy-fallback]');
+    fallback.hidden = true;
+    status.textContent = '';
+    try {
+      await navigator.clipboard.writeText(text);
+      if (scope.isConnected) status.textContent = success;
+    } catch (_) {
+      if (!scope.isConnected) return;
+      fallback.hidden = false;
+      const field = fallback.querySelector('textarea');
+      field.value = text;
+      field.focus();
+      field.select();
+      status.textContent = 'Clipboard unavailable. Copy the selected text below.';
+    }
+  }
+
   let opener;
   function setupCards(code) {
     const search = dialog.querySelector('#card-search');
@@ -95,6 +114,8 @@ import { selectSets, matchesCard } from '/browse.mjs';
     const cards = Array.from(list.querySelectorAll('.card-item')).map((element) => ({
       element, rarity: element.dataset.rarity, kind: element.dataset.kind, name: element.dataset.cardName, number: element.dataset.cardNumber, collected: element.dataset.collected === 'true',
     }));
+    const copyMissing = dialog.querySelector('[data-copy-missing]');
+    let missingText = '';
     const body = dialog.querySelector('.modal-body');
     const updateCards = () => {
       let count = 0;
@@ -108,10 +129,19 @@ import { selectSets, matchesCard } from '/browse.mjs';
       pressed(dialog, 'data-card-view', state.view);
       dialog.querySelector('#card-results').textContent = `${count} of ${cards.length} cards`;
       dialog.querySelector('#card-empty').hidden = count > 0;
+      missingText = missingCardList(cards, state, code);
+      const missingCount = missingText ? missingText.split('\n').length : 0;
+      copyMissing.disabled = missingCount === 0;
+      copyMissing.textContent = `Copy missing (${missingCount})`;
+      dialog.querySelector('[data-copy-status]').textContent = '';
+      dialog.querySelector('[data-copy-fallback]').hidden = true;
       body.scrollTop = 0;
       cardStates[code] = state;
       persist();
     };
+    copyMissing.addEventListener('click', () => {
+      if (missingText) copyText(missingText, dialog, 'Missing card list copied.');
+    });
     const raritySelect = dialog.querySelector('#card-rarity');
     raritySelect.value = state.rarity;
     raritySelect.addEventListener('change', () => { state.rarity = raritySelect.value; updateCards(); });

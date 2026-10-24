@@ -538,6 +538,8 @@ mod tests {
         assert!(!details.contains("<script>"));
         assert!(details.contains("id=\"card-kind\""));
         assert!(details.contains("id=\"card-rarity\""));
+        assert!(details.contains("data-copy-missing disabled"));
+        assert!(details.contains("data-copy-fallback hidden"));
         assert!(details.contains("data-rarity=\"rare\""));
         assert!(details.contains("class=\"rarity-label rare\">Rare</span>"));
         assert!(details.contains("Base completion by rarity"));

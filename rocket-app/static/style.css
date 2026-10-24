@@ -258,3 +258,8 @@ figcaption { display: flex; gap: 8px; font-size: 11px; margin-top: 10px; line-he
 .printing-label.variant { color: var(--warm); }
 .checklist .printing-label { display: inline-block; margin: 0 0 0 10px; }
 .modal-header > div { min-width: 0; flex: 1; }
+
+.copy-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 12px; }
+.copy-status { font-size: 11px; color: var(--muted); }
+.copy-fallback { display: block; margin-top: 12px; font-size: 12px; }
+.copy-fallback textarea { display: block; width: 100%; margin-top: 6px; padding: 8px; font: 12px/1.5 monospace; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }

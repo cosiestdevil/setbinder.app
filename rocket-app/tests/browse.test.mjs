@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { selectSets, matchesCard } from '../static/browse.mjs';
+import { selectSets, matchesCard, missingCardList } from '../static/browse.mjs';
 
 const sets = [
   { name: 'Unknown', code: 'unk', available: false, complete: false, missing: 0, completion: 0 },
@@ -58,4 +58,17 @@ test('rarity combines with printing, ownership and search without hiding unknown
     assert.equal(matchesCard({ ...cards[0], rarity }, { rarity }), true);
     assert.equal(matchesCard({ ...cards[0], rarity }, { rarity: 'rare' }), rarity === 'rare');
   }
+});
+
+test('copy missing exports exact filtered printings once, without owned cards', () => {
+  const base = { name: 'Éowyn, Fearless Knight', number: '1a', rarity: 'rare', kind: 'base', collected: false };
+  const cards = [base, base, { ...base, number: '2', collected: true },
+    { ...base, number: '3', kind: 'variant' }, { ...base, number: '4', rarity: 'mythic' }];
+  assert.equal(missingCardList(cards, { rarity: 'rare', kind: 'base' }, 'ltr'), '1 Éowyn, Fearless Knight (LTR) 1a');
+  assert.equal(missingCardList(cards, { filter: 'collected' }, 'ltr'), '');
+  assert.equal(missingCardList(cards, { query: 'no matches' }, 'ltr'), '');
+  assert.equal(missingCardList([], {}, 'ltr'), '');
+  assert.equal(missingCardList(cards, { kind: 'variant', query: '#3' }, 'ltr'), '1 Éowyn, Fearless Knight (LTR) 3');
+  assert.equal(missingCardList([{ ...base, name: 'Front // Back\nInjected line', number: '10★' }], {}, 'tst'), '1 Front // Back Injected line (TST) 10★');
+  assert.equal(missingCardList(cards, {}, 'ltr').split('\n').length, 3);
 });

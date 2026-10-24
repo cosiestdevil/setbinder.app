@@ -27,3 +27,13 @@ export function matchesCard(card, { query = '', filter = 'all', kind = 'all', ra
   if (search.startsWith('#') || /^\d+[a-z★]*$/i.test(search)) return normalize(card.number) === search.replace(/^#/, '');
   return search.split(/\s+/).every((term) => normalize(card.name).includes(term));
 }
+
+// One copy of each exact missing printing; ownership quantities do not multiply rows.
+export function missingCardList(cards, state, setCode) {
+  const seen = new Set();
+  return cards.filter(card => {
+    if (card.collected || !matchesCard(card, state) || seen.has(card.number)) return false;
+    seen.add(card.number);
+    return true;
+  }).map(card => `1 ${String(card.name).replace(/\s+/g, ' ').trim()} (${setCode.toUpperCase()}) ${card.number}`).join('\n');
+}
