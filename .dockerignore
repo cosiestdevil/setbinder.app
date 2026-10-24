@@ -1,1 +1,10 @@
 target
+**/target
+.git
+.aws
+.codex
+.agents
+.env
+.env.*
+node_modules
+**/node_modules

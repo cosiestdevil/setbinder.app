@@ -1,0 +1,49 @@
+# After pushing, switch the existing main-branch trigger from its inline build
+# to this file. Defaults match the current deployment; trigger substitutions
+# can override them without creating a new service or repository.
+substitutions:
+  _IMAGE: europe-west1-docker.pkg.dev/secure-way-473321-p1/cloud-run-source-deploy/setbinder.app/setbinder-app
+  _SERVICE: setbinder-app
+  _REGION: europe-west1
+
+steps:
+  - id: validate-target
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    env:
+      - 'IMAGE=${_IMAGE}'
+      - 'SERVICE=${_SERVICE}'
+      - 'REGION=${_REGION}'
+      - 'TAG=$COMMIT_SHA'
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        : "$${IMAGE:?Set trigger substitution _IMAGE}"
+        : "$${SERVICE:?Set trigger substitution _SERVICE}"
+        : "$${REGION:?Set trigger substitution _REGION}"
+        : "$${TAG:?This build requires COMMIT_SHA; supply it for manual builds}"
+  - id: build-and-push
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    env:
+      - 'IMAGE=${_IMAGE}'
+      - 'TAG=$COMMIT_SHA'
+    args: ['ci/build-image.sh']
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - '${_SERVICE}'
+      - '--image=${_IMAGE}:$COMMIT_SHA'
+      - '--region=${_REGION}'
+      - '--project=$PROJECT_ID'
+      - '--platform=managed'
+      - '--quiet'
+
+# Retain enough time for the initial cold dependency build. Warm builds reuse it.
+timeout: 1800s
+options:
+  logging: CLOUD_LOGGING_ONLY
