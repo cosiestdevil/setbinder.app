@@ -29,3 +29,13 @@ test('collector numbers match exactly and ownership is respected', () => {
   assert.equal(matchesCard(card, { query: 'eowyn', filter: 'missing' }), false);
   assert.equal(matchesCard({ ...card, number: '10' }, { query: '1' }), false);
 });
+test('printing classification combines with ownership and collector search', () => {
+  const base = { name: 'Card', number: '2', collected: false, kind: 'base' };
+  const variant = { ...base, number: '10a', collected: true, kind: 'variant' };
+  const unknown = { ...base, number: '3', kind: 'unclassified' };
+  assert.equal(matchesCard(base, { kind: 'base', filter: 'missing' }), true);
+  assert.equal(matchesCard(variant, { kind: 'base', filter: 'collected' }), false);
+  assert.equal(matchesCard(variant, { kind: 'variant', filter: 'collected', query: '#10a' }), true);
+  assert.equal(matchesCard(unknown, { kind: 'unclassified' }), true);
+  assert.equal(matchesCard(unknown, { kind: 'variant' }), false);
+});

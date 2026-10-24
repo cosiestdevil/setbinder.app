@@ -216,3 +216,29 @@ figcaption { display: flex; gap: 8px; font-size: 11px; margin-top: 10px; line-he
   .segmented button { min-height: 44px; }
   .card-toolbar .segmented button { min-height: 44px; }
 }
+.progress-legend { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-top: 18px; color: var(--muted); font-size: 11px; }
+.legend-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.base-dot { background: var(--accent); }
+.variant-dot { background: var(--warm); }
+.progress-explanation { margin: 12px 0 22px; max-width: 780px; color: var(--muted); font-size: 12px; }
+.progress-explanation summary { cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.progress-explanation p { margin-top: 10px; }
+.metric-label { font-size: 10px; font-weight: 400; }
+.bonus-percentage { color: var(--warm); font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.compound-progress { position: relative; padding-bottom: 17px; }
+.compound-bar { display: flex; height: 7px; border-radius: 4px; }
+.base-track { flex: 0 0 var(--base-track); min-width: 0; }
+.base-track progress { height: 7px; }
+.variant-track { flex: 1; background: var(--warm); height: 7px; border-radius: 0 4px 4px 0; }
+.base-target { position: absolute; top: -3px; left: var(--base-track); transform: translateX(-100%); height: 12px; padding-top: 12px; font-size: 9px; line-height: 1.4; color: var(--muted); border-right: 1px solid var(--ink); padding-right: 3px; }
+.progress-status { margin-top: 7px; }
+.classification-note { color: var(--muted); font-size: 10px; margin-top: 6px; }
+.dialog-progress { margin-top: 18px; width: min(430px, 100%); }
+.dialog-progress .progress-caption { font-size: 11px; }
+.printing-control { display: flex; align-items: center; gap: 12px; color: var(--muted); margin: 12px 0 0; font-size: 11px; font-weight: 400; }
+.printing-control select { font-size: 12px; min-height: 44px; }
+.printing-label { display: block; width: fit-content; color: var(--muted); font-size: 9px; text-transform: capitalize; margin-top: 4px; }
+.printing-label.base { color: var(--accent); }
+.printing-label.variant { color: var(--warm); }
+.checklist .printing-label { display: inline-block; margin: 0 0 0 10px; }
+.modal-header > div { min-width: 0; flex: 1; }

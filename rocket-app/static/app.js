@@ -30,7 +30,7 @@ import { selectSets, matchesCard } from '/browse.mjs';
   const dialog = document.getElementById('set-dialog');
   const setList = document.getElementById('set-list');
   if (!dialog || !setList) return;
-  const storageKey = `setbinder-browse:${location.pathname}`;
+  const storageKey = `setbinder-browse-v2:${location.pathname}`;
   let saved = {};
   try { saved = JSON.parse(sessionStorage.getItem(storageKey) || '{}') || {}; } catch (_) {}
   if (typeof saved !== 'object' || Array.isArray(saved)) saved = {};
@@ -85,13 +85,14 @@ import { selectSets, matchesCard } from '/browse.mjs';
     if (!search) return;
     const stored = cardStates[code];
     const state = {
+      kind: ['all', 'base', 'variant', 'unclassified'].includes(stored?.kind) ? stored.kind : 'all',
       query: typeof stored?.query === 'string' ? stored.query.slice(0, 200) : '',
       filter: ['all', 'missing', 'collected'].includes(stored?.filter) ? stored.filter : 'all',
       view: stored?.view === 'list' ? 'list' : 'grid',
     };
     const list = dialog.querySelector('#card-list');
     const cards = Array.from(list.querySelectorAll('.card-item')).map((element) => ({
-      element, name: element.dataset.cardName, number: element.dataset.cardNumber, collected: element.dataset.collected === 'true',
+      element, kind: element.dataset.kind, name: element.dataset.cardName, number: element.dataset.cardNumber, collected: element.dataset.collected === 'true',
     }));
     const body = dialog.querySelector('.modal-body');
     const updateCards = () => {
@@ -110,6 +111,9 @@ import { selectSets, matchesCard } from '/browse.mjs';
       cardStates[code] = state;
       persist();
     };
+    const kindSelect = dialog.querySelector('#card-kind');
+    kindSelect.value = state.kind;
+    kindSelect.addEventListener('change', () => { state.kind = kindSelect.value; updateCards(); });
     search.value = state.query;
     search.addEventListener('input', () => { state.query = search.value; updateCards(); });
     dialog.querySelectorAll('[data-card-filter]').forEach((button) => button.addEventListener('click', () => {
@@ -119,7 +123,7 @@ import { selectSets, matchesCard } from '/browse.mjs';
       state.view = button.dataset.cardView; updateCards();
     }));
     dialog.querySelector('[data-reset-cards]').addEventListener('click', () => {
-      state.query = ''; state.filter = 'all'; search.value = ''; updateCards(); search.focus();
+      state.query = ''; state.filter = 'all'; state.kind = 'all'; search.value = ''; kindSelect.value = 'all'; updateCards(); search.focus();
     });
     updateCards();
   }

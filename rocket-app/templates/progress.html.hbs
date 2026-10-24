@@ -1,0 +1,12 @@
+{{#if base_available}}
+<div class="progress-heading"><span class="percentage">{{base_percentage}} <span class="metric-label">base</span></span><span class="bonus-percentage">+{{bonus_percentage}} <span class="metric-label">variants</span></span></div>
+<div class="compound-progress" style="--base-track: {{base_track_width}}%;" role="group" aria-label="{{#if name}}{{name}}{{else}}{{code}}{{/if}}: {{base_percentage}} base, plus {{bonus_percentage}} variant bonus">
+  <div class="compound-bar"><div class="base-track"><progress value="{{progress.base_collected}}" max="{{progress.base_count}}" aria-label="Base printings collected">{{base_percentage}}</progress></div>{{#if has_bonus}}<div class="variant-track" role="img" aria-label="{{progress.variant_collected}} variants owned; {{bonus_percentage}} bonus relative to the base-set size"></div>{{/if}}</div>
+  <span class="base-target" aria-hidden="true">100%</span>
+</div>
+<p class="progress-caption">{{progress.base_collected}} / {{progress.base_count}} base · {{progress.variant_collected}} / {{progress.variant_count}} variants</p>
+<div class="progress-status">{{#if complete}}<span class="badge collected">Base complete</span>{{else}}<span class="missing-count">{{missing_count}} base missing</span>{{/if}}</div>
+{{#if progress.unclassified_count}}<p class="classification-note">{{progress.unclassified_count}} unclassified · {{progress.unclassified_collected}} owned · excluded from progress</p>{{/if}}
+{{else}}
+  {{#if available}}<p class="unavailable">Base classification unavailable</p><p class="progress-caption">{{progress.unclassified_collected}} / {{progress.unclassified_count}} unclassified printings owned. No Oracle IDs available.</p>{{else}}<p class="unavailable">Set data unavailable</p><p class="progress-caption">We couldn't match this set to the card database.</p>{{/if}}
+{{/if}}

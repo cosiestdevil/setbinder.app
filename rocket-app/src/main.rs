@@ -98,18 +98,34 @@ fn collection_page(id: &str, sets: Vec<models::Set>) -> Template {
     let set_count = sets.len();
     let completed_count = sets
         .iter()
-        .filter(|set| set.set_count > 0 && set.collected_count == set.set_count)
+        .filter(|set| {
+            set.progress.base_count > 0 && set.progress.base_collected == set.progress.base_count
+        })
         .count();
     let matched_count: usize = sets.iter().map(|set| set.collected_count).sum();
     let sets: Vec<serde_json::Value> = sets
         .into_iter()
         .map(|set| {
             let available = set.set_count > 0;
-            let missing_count = set.set_count.saturating_sub(set.collected_count);
-            let complete = available && missing_count == 0;
+            let base_available = set.progress.base_count > 0;
+            let missing_count = set
+                .progress
+                .base_count
+                .saturating_sub(set.progress.base_collected);
+            let complete = base_available && missing_count == 0;
+            let base_completion = set.progress.base_completion();
+            let variant_bonus = set.progress.variant_bonus();
+            // Both segments share a scale, fitted into the row without clipping bonuses >100%.
+            let base_track_width = 100.0 / (1.0 + variant_bonus);
             let mut value =
                 serde_json::to_value(set).expect("Set contains only serializable fields");
             value["available"] = available.into();
+            value["base_available"] = base_available.into();
+            value["base_percentage"] = format!("{:.2}%", base_completion * 100.0).into();
+            value["bonus_percentage"] = format!("{:.2}%", variant_bonus * 100.0).into();
+            value["base_completion"] = base_completion.into();
+            value["base_track_width"] = format!("{base_track_width:.4}").into();
+            value["has_bonus"] = (variant_bonus > 0.0).into();
             value["missing_count"] = missing_count.into();
             value["complete"] = complete.into();
             value
@@ -238,7 +254,11 @@ mod tests {
             set_count: total,
             collected_count: collected,
             set_completion: 1.0,
-            progress: models::PrintingProgress::default(),
+            progress: models::PrintingProgress {
+                base_count: total,
+                base_collected: collected,
+                ..Default::default()
+            },
         };
         collection_page(
             "1234",
@@ -256,9 +276,77 @@ mod tests {
         assert_eq!(response.status(), rocket::http::Status::Ok);
         let html = response.into_string().await.unwrap();
         assert!(html.contains("Set data unavailable"));
-        assert!(html.contains("Complete</span>"));
+        assert!(html.contains("Base complete</span>"));
         assert!(html.contains("value=\"2\" max=\"2\""));
         assert!(!html.contains("max=\"0\""));
-        assert!(html.contains("Sets complete</dt><dd>1"));
+        assert!(html.contains("Base sets complete</dt><dd>1"));
+    }
+    #[get("/compound-fixture")]
+    fn compound_fixture() -> Template {
+        let make_set = |code: &str, base, owned, variants, bonus, unknown| models::Set {
+            code: code.into(),
+            name: Some(code.into()),
+            cards: vec![],
+            collected_cards: vec![],
+            set_percentage: "unused".into(),
+            set_count: base + variants + unknown,
+            collected_count: owned + bonus,
+            set_completion: 0.0,
+            progress: models::PrintingProgress {
+                base_count: base,
+                base_collected: owned,
+                variant_count: variants,
+                variant_collected: bonus,
+                unclassified_count: unknown,
+                unclassified_collected: 0,
+            },
+        };
+        collection_page(
+            "1234",
+            vec![
+                make_set("incomplete", 5, 4, 5, 1, 0),
+                make_set("bonus", 2, 2, 5, 5, 0),
+                make_set("unclassified", 0, 0, 0, 0, 3),
+            ],
+        )
+    }
+    #[rocket::async_test]
+    async fn compound_progress_keeps_base_and_bonus_separate() {
+        let client = rocket::local::asynchronous::Client::tracked(
+            rocket().mount("/", routes![compound_fixture]),
+        )
+        .await
+        .unwrap();
+        let response = client.get("/compound-fixture").dispatch().await;
+        assert_eq!(response.status(), rocket::http::Status::Ok);
+        let html = response.into_string().await.unwrap();
+        assert!(html.contains("80.00%"));
+        assert!(html.contains("+20.00%"));
+        assert!(
+            html.contains("+250.00%"),
+            "bonuses must not be capped at 100%"
+        );
+        assert!(
+            html.contains("value=\"4\" max=\"5\""),
+            "base progress uses only the base denominator"
+        );
+        assert!(
+            html.contains("--base-track: 28.5714%"),
+            "large bonuses fit the row on a shared scale"
+        );
+        assert!(html.contains("Base sets complete</dt><dd>1"));
+        assert!(html.contains("Base classification unavailable"));
+        assert!(!html.contains("NaN"));
+        let incomplete = html
+            .split("data-set-code=\"incomplete\"")
+            .nth(1)
+            .unwrap()
+            .split("<template")
+            .next()
+            .unwrap();
+        assert!(
+            incomplete.contains("data-complete=\"false\""),
+            "a variant bonus must not finish the base set"
+        );
     }
 }

@@ -17,7 +17,8 @@ export function selectSets(sets, { query = '', filter = 'all', sort = 'completio
   });
 }
 
-export function matchesCard(card, { query = '', filter = 'all' } = {}) {
+export function matchesCard(card, { query = '', filter = 'all', kind = 'all' } = {}) {
+  if (kind !== 'all' && card.kind !== kind) return false;
   if (filter === 'missing' && card.collected || filter === 'collected' && !card.collected) return false;
   const search = normalize(query);
   if (!search) return true;
