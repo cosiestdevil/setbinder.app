@@ -37,3 +37,53 @@ export function missingCardList(cards, state, setCode) {
     return true;
   }).map(card => `1 ${String(card.name).replace(/\s+/g, ' ').trim()} (${setCode.toUpperCase()}) ${card.number}`).join('\n');
 }
+
+const oneOf = (value, choices, fallback) => choices.includes(value) ? value : fallback;
+const queryText = value => typeof value === 'string' ? value.slice(0, 200) : '';
+export function cardViewState(value = {}) {
+  return {
+    query: queryText(value?.query),
+    filter: oneOf(value?.filter, ['all', 'missing', 'collected'], 'all'),
+    kind: oneOf(value?.kind, ['all', 'base', 'variant', 'unclassified'], 'all'),
+    rarity: oneOf(value?.rarity, ['all', 'common', 'uncommon', 'rare', 'mythic', 'special', 'bonus', 'unknown'], 'all'),
+    view: oneOf(value?.view, ['grid', 'list'], 'grid'),
+  };
+}
+export function setViewState(value = {}) {
+  return {
+    query: queryText(value?.query),
+    filter: oneOf(value?.filter, ['all', 'incomplete', 'complete', 'unavailable'], 'all'),
+    sort: oneOf(value?.sort, ['completion', 'missing', 'name'], 'completion'),
+  };
+}
+const browseKeys = ['browse', 'set', 'sets', 'status', 'sort', 'q', 'owned', 'printing', 'rarity', 'layout'];
+export function readBrowseUrl(search) {
+  const params = new URLSearchParams(search);
+  if (!browseKeys.some(key => params.has(key))) return null;
+  const code = params.get('set') || '';
+  return {
+    setCode: /^[a-z0-9]{1,16}$/.test(code) ? code : null,
+    sets: setViewState({ query: params.get('sets'), filter: params.get('status'), sort: params.get('sort') }),
+    cards: cardViewState({ query: params.get('q'), filter: params.get('owned'), kind: params.get('printing'), rarity: params.get('rarity'), view: params.get('layout') }),
+  };
+}
+export function browseSearch({ sets, setCode, cards }, search = '') {
+  const params = new URLSearchParams(search);
+  browseKeys.forEach(key => params.delete(key));
+  // This marker makes omitted defaults explicit, overriding a recipient's saved filters.
+  params.set('browse', '1');
+  const setState = setViewState(sets);
+  const setDefaults = setViewState();
+  for (const [field, key] of [['query', 'sets'], ['filter', 'status'], ['sort', 'sort']]) {
+    if (setState[field] !== setDefaults[field]) params.set(key, setState[field]);
+  }
+  if (/^[a-z0-9]{1,16}$/.test(setCode || '')) {
+    params.set('set', setCode);
+    const state = cardViewState(cards);
+    const defaults = cardViewState();
+    for (const [field, key] of [['query', 'q'], ['filter', 'owned'], ['kind', 'printing'], ['rarity', 'rarity'], ['view', 'layout']]) {
+      if (state[field] !== defaults[field]) params.set(key, state[field]);
+    }
+  }
+  return `?${params}`;
+}

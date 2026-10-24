@@ -1,4 +1,4 @@
-import { selectSets, matchesCard, missingCardList } from '/browse.mjs';
+import { selectSets, matchesCard, missingCardList, cardViewState, setViewState, readBrowseUrl, browseSearch } from '/browse.mjs';
 
 (() => {
   'use strict';
@@ -36,10 +36,13 @@ import { selectSets, matchesCard, missingCardList } from '/browse.mjs';
   if (typeof saved !== 'object' || Array.isArray(saved)) saved = {};
   let cardStates = saved.cards;
   if (!cardStates || typeof cardStates !== 'object' || Array.isArray(cardStates)) cardStates = {};
-  const setState = {
-    query: typeof saved.sets?.query === 'string' ? saved.sets.query.slice(0, 200) : '',
-    filter: ['all', 'incomplete', 'complete', 'unavailable'].includes(saved.sets?.filter) ? saved.sets.filter : 'all',
-    sort: ['completion', 'missing', 'name'].includes(saved.sets?.sort) ? saved.sets.sort : 'completion',
+  const shared = readBrowseUrl(location.search);
+  const setState = setViewState(shared ? shared.sets : saved.sets);
+  let activeCode = shared?.setCode || null;
+  if (activeCode) cardStates[activeCode] = shared.cards;
+  const syncUrl = () => {
+    const search = browseSearch({ sets: setState, setCode: activeCode, cards: cardStates[activeCode] }, location.search);
+    if (search !== location.search) history.replaceState(null, '', `${location.pathname}${search}${location.hash}`);
   };
   const persist = () => {
     try { sessionStorage.setItem(storageKey, JSON.stringify({ sets: setState, cards: cardStates })); } catch (_) {}
@@ -54,6 +57,7 @@ import { selectSets, matchesCard, missingCardList } from '/browse.mjs';
   const pressed = (scope, attribute, value) => {
     scope.querySelectorAll(`[${attribute}]`).forEach((button) => button.setAttribute('aria-pressed', String(button.getAttribute(attribute) === value)));
   };
+  if (!rows.some(row => row.code === activeCode)) activeCode = null;
   const updateSets = () => {
     const visible = selectSets(rows, setState);
     const visibleElements = new Set(visible.map((row) => row.element));
@@ -64,6 +68,7 @@ import { selectSets, matchesCard, missingCardList } from '/browse.mjs';
     document.getElementById('set-results').textContent = `${visible.length} of ${rows.length} sets`;
     document.getElementById('set-empty').hidden = visible.length > 0 || rows.length === 0;
     persist();
+    syncUrl();
   };
   setSearch.value = setState.query;
   setSort.value = setState.sort;
@@ -103,13 +108,7 @@ import { selectSets, matchesCard, missingCardList } from '/browse.mjs';
     const search = dialog.querySelector('#card-search');
     if (!search) return;
     const stored = cardStates[code];
-    const state = {
-      rarity: ['all', 'common', 'uncommon', 'rare', 'mythic', 'special', 'bonus', 'unknown'].includes(stored?.rarity) ? stored.rarity : 'all',
-      kind: ['all', 'base', 'variant', 'unclassified'].includes(stored?.kind) ? stored.kind : 'all',
-      query: typeof stored?.query === 'string' ? stored.query.slice(0, 200) : '',
-      filter: ['all', 'missing', 'collected'].includes(stored?.filter) ? stored.filter : 'all',
-      view: stored?.view === 'list' ? 'list' : 'grid',
-    };
+    const state = cardViewState(stored);
     const list = dialog.querySelector('#card-list');
     const cards = Array.from(list.querySelectorAll('.card-item')).map((element) => ({
       element, rarity: element.dataset.rarity, kind: element.dataset.kind, name: element.dataset.cardName, number: element.dataset.cardNumber, collected: element.dataset.collected === 'true',
@@ -138,7 +137,9 @@ import { selectSets, matchesCard, missingCardList } from '/browse.mjs';
       body.scrollTop = 0;
       cardStates[code] = state;
       persist();
+      syncUrl();
     };
+    dialog.querySelector('[data-copy-view]').addEventListener('click', () => copyText(location.href, dialog, 'Link to this view copied.'));
     copyMissing.addEventListener('click', () => {
       if (missingText) copyText(missingText, dialog, 'Missing card list copied.');
     });
@@ -167,6 +168,8 @@ import { selectSets, matchesCard, missingCardList } from '/browse.mjs';
     dialog.querySelector('h2').textContent = button.closest('.set-row').querySelector('h3').textContent;
   };
   async function loadDetails(button) {
+    activeCode = button.dataset.open;
+    syncUrl();
     detailsRequest?.abort();
     const request = new AbortController();
     detailsRequest = request;
@@ -204,5 +207,23 @@ import { selectSets, matchesCard, missingCardList } from '/browse.mjs';
     const rect = dialog.getBoundingClientRect();
     if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();
   });
-  dialog.addEventListener('close', () => { detailsRequest?.abort(); dialog.replaceChildren(); opener?.focus(); });
+  dialog.addEventListener('close', () => { detailsRequest?.abort(); dialog.replaceChildren(); activeCode = null; syncUrl(); opener?.focus(); });
+  const shareTools = document.querySelector('[data-share-tools]');
+  shareTools.querySelector('[data-copy-view]').addEventListener('click', () => copyText(location.href, shareTools, 'Link to this view copied.'));
+  if (activeCode) {
+    opener = rows.find(row => row.code === activeCode).element.querySelector('[data-open]');
+    loadDetails(opener);
+  }
+  window.addEventListener('popstate', () => {
+    const state = readBrowseUrl(location.search);
+    Object.assign(setState, state?.sets || setViewState());
+    activeCode = rows.some(row => row.code === state?.setCode) ? state.setCode : null;
+    if (activeCode) cardStates[activeCode] = state.cards;
+    setSearch.value = setState.query; setSort.value = setState.sort;
+    updateSets();
+    if (activeCode) {
+      opener = rows.find(row => row.code === activeCode).element.querySelector('[data-open]');
+      loadDetails(opener);
+    } else if (dialog.open) dialog.close();
+  });
 })();

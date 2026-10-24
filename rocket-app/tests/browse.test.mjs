@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { selectSets, matchesCard, missingCardList } from '../static/browse.mjs';
+import { selectSets, matchesCard, missingCardList, cardViewState, setViewState, readBrowseUrl, browseSearch } from '../static/browse.mjs';
 
 const sets = [
   { name: 'Unknown', code: 'unk', available: false, complete: false, missing: 0, completion: 0 },
@@ -71,4 +71,35 @@ test('copy missing exports exact filtered printings once, without owned cards', 
   assert.equal(missingCardList(cards, { kind: 'variant', query: '#3' }, 'ltr'), '1 Éowyn, Fearless Knight (LTR) 3');
   assert.equal(missingCardList([{ ...base, name: 'Front // Back\nInjected line', number: '10★' }], {}, 'tst'), '1 Front // Back Injected line (TST) 10★');
   assert.equal(missingCardList(cards, {}, 'ltr').split('\n').length, 3);
+});
+
+test('shared URLs round-trip all filters and preserve unrelated query parameters', () => {
+  const state = {
+    sets: { query: 'Lorwyn & Éowyn', filter: 'incomplete', sort: 'missing' },
+    setCode: 'ecl',
+    cards: { query: 'Front // Back #10★ & +', filter: 'missing', kind: 'base', rarity: 'mythic', view: 'list' },
+  };
+  const search = browseSearch(state, '?campaign=test&set=old&q=stale');
+  assert.deepEqual(readBrowseUrl(search), state);
+  assert.equal(new URLSearchParams(search).get('campaign'), 'test');
+  assert.equal(new URLSearchParams(search).getAll('set').length, 1);
+  assert.equal(browseSearch(readBrowseUrl(search), search), search);
+});
+test('explicit defaults override saved filters and closing a set clears card URL fields', () => {
+  assert.equal(readBrowseUrl('?unrelated=1'), null);
+  assert.deepEqual(readBrowseUrl('?browse=1'), { sets: setViewState(), setCode: null, cards: cardViewState() });
+  const search = browseSearch({ sets: setViewState(), setCode: null }, '?set=ecl&rarity=rare&q=old&owned=missing');
+  assert.equal(search, '?browse=1');
+  const opened = readBrowseUrl('?set=ecl');
+  assert.equal(opened.setCode, 'ecl');
+  assert.deepEqual(opened.cards, cardViewState());
+});
+test('invalid and oversized URL state is bounded and normalized', () => {
+  const state = readBrowseUrl('?set=../../bad&status=bad&sort=bad&owned=bad&printing=bad&rarity=bad&layout=bad&q=' + 'x'.repeat(500));
+  assert.equal(state.setCode, null);
+  assert.deepEqual(state.sets, setViewState());
+  assert.deepEqual(state.cards, { ...cardViewState(), query: 'x'.repeat(200) });
+  assert.deepEqual(cardViewState(null), cardViewState());
+  assert.deepEqual(setViewState(null), setViewState());
+  assert.equal(new URLSearchParams(browseSearch({setCode: 'BAD/SET'})).has('set'), false);
 });
