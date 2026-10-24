@@ -46,7 +46,10 @@ pub async fn process_data(client: &reqwest::Client, cards: Vec<Card>) -> Result<
         .error_for_status()?
         .json()
         .await?;
-    Ok(process_cards(cards, scryfall::get_bulk(), set_data))
+    let sets = cards.iter().map(|card| card.set_code.as_str()).collect();
+    let bulk = scryfall::get_sets(&sets)
+        .map_err(|error| Error::Data(format!("Unable to read Scryfall database: {error}")))?;
+    Ok(process_cards(cards, bulk, set_data))
 }
 
 /// Natural ordering handles collector numbers such as 2, 10, 10a, and 10★
@@ -182,7 +185,12 @@ fn process_cards(
             collected_cards: cards,
         });
     }
-    sets.sort_by(|a, b| b.set_completion.total_cmp(&a.set_completion));
+    sets.sort_by(|a, b| {
+        b.progress
+            .base_completion()
+            .total_cmp(&a.progress.base_completion())
+            .then_with(|| a.code.cmp(&b.code))
+    });
     sets
 }
 

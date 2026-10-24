@@ -68,3 +68,18 @@ fn oracle_identity_is_preserved_and_optional() {
     let cards = build_data::read_cards(CARD.as_bytes(), true).unwrap();
     assert!(cards[0].oracle_id.is_none());
 }
+
+#[test]
+fn selected_sets_match_bulk_and_empty_selection_retains_nothing() {
+    use std::collections::HashSet;
+    let bulk = scryfall::get_bulk();
+    let code = bulk[0].set.as_str();
+    let selected = scryfall::get_sets(&HashSet::from([code])).unwrap();
+    let expected: Vec<_> = bulk.iter().filter(|card| card.set == code).collect();
+    assert!(!selected.is_empty());
+    assert_eq!(
+        serde_json::to_value(&selected).unwrap(),
+        serde_json::to_value(expected).unwrap()
+    );
+    assert!(scryfall::get_sets(&HashSet::new()).unwrap().is_empty());
+}
