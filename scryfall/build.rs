@@ -1,52 +1,53 @@
-use std::{env, fs, path::PathBuf, time::Duration};
-use models::*;
+use models::BulkData;
+use std::{env, fs, io, path::PathBuf, time::Duration};
+mod build_data;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=build.rs");
-    let out_dir = PathBuf::from(env::var("OUT_DIR")?);
-    let out_path = out_dir.join("scryfall-cards.bin");
-    let client = reqwest::blocking::Client::new();
-    let res: serde_json::Value = client
-        .get("https://api.scryfall.com/bulk-data")
-        .header("User-Agent", "archidekt-live-set-completion")
-        .header("Accept", "application/json")
-        .send()
-        .unwrap()
-        .json()
-        .unwrap();
-    let items = res["data"].as_array().unwrap();
-    for item in items {
-        if item["type"] == "default_cards" {
-            let updated_at = item["updated_at"].as_str().unwrap();
-            let download_uri = item["download_uri"].as_str().unwrap();
-            let res: Vec<ScryfallCard> = client
-                .get(download_uri)
-                .header("User-Agent", "archidekt-live-set-completion")
-                .header("Accept", "application/json")
-                .timeout(Duration::from_secs(200))
-                .send()
-                .unwrap()
-                .json()
-                .unwrap();
-
-            fs::write(
-                out_path,
-                bincode::serde::encode_to_vec(
-                    &BulkData {
-                        updated_at: updated_at.to_owned(),
-                        cards: res.clone(),
-                    },
-                    bincode::config::standard(),
-                )
-                .unwrap(), // serde_json::to_string(&BulkData {
-                           //     updated_at: updated_at.to_owned(),
-                           //     cards: res.clone(),
-                           // })
-                           // .unwrap(),
-            )
-            .unwrap();
-            break;
+    println!("cargo:rerun-if-changed=build_data.rs");
+    println!("cargo:rerun-if-env-changed=SCRYFALL_BULK_FILE");
+    let out_path = PathBuf::from(env::var("OUT_DIR")?).join("scryfall-cards.bin");
+    // A pinned BulkData JSON file makes offline and reproducible builds possible.
+    // Never silently substitute an empty database when downloading fails.
+    let bulk = if let Some(path) = env::var_os("SCRYFALL_BULK_FILE") {
+        let path = PathBuf::from(path);
+        println!("cargo:rerun-if-changed={}", path.display());
+        build_data::local_bulk(&path)?
+    } else {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(200))
+            .user_agent("archidekt-live-set-completion")
+            .build()?;
+        let list: build_data::BulkList = client
+            .get("https://api.scryfall.com/bulk-data")
+            .header("Accept", "application/json")
+            .send()?
+            .error_for_status()?
+            .json()?;
+        let item = list.data.into_iter().find(|item| item.r#type == "default_cards")
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Scryfall response has no default_cards entry; set SCRYFALL_BULK_FILE to a local BulkData JSON file for an offline build"))?;
+        let (uri, jsonl) = item.download()?;
+        let response = client.get(uri).send()?.error_for_status()?;
+        let cards = if jsonl {
+            build_data::read_cards(flate2::read::GzDecoder::new(response), true)?
+        } else {
+            build_data::read_cards(response, false)?
+        };
+        BulkData {
+            updated_at: item.updated_at,
+            cards,
         }
+    };
+    if bulk.cards.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Scryfall bulk database is empty",
+        )
+        .into());
     }
+    fs::write(
+        out_path,
+        bincode::serde::encode_to_vec(&bulk, bincode::config::standard())?,
+    )?;
     Ok(())
 }
