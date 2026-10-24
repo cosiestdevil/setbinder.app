@@ -1,0 +1,14 @@
+[package]
+name = "moxfield-provider"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+models = { workspace = true }
+provider = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+serde_json = { workspace = true }

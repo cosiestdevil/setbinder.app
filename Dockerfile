@@ -10,6 +10,7 @@ COPY models/ models/
 COPY scryfall/ scryfall/
 COPY provider/ provider/
 COPY archidekt-provider/ archidekt-provider/
+COPY moxfield-provider/ moxfield-provider/
 COPY rocket-app/ rocket-app/
 RUN cargo chef prepare --recipe-path recipe.json
 
@@ -25,6 +26,7 @@ COPY models/ models/
 COPY scryfall/ scryfall/
 COPY provider/ provider/
 COPY archidekt-provider/ archidekt-provider/
+COPY moxfield-provider/ moxfield-provider/
 COPY rocket-app/ rocket-app/
 RUN cargo build --release --locked -p rocket-app --bin setbinder
 
