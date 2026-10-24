@@ -85,6 +85,7 @@ import { selectSets, matchesCard } from '/browse.mjs';
     if (!search) return;
     const stored = cardStates[code];
     const state = {
+      rarity: ['all', 'common', 'uncommon', 'rare', 'mythic', 'special', 'bonus', 'unknown'].includes(stored?.rarity) ? stored.rarity : 'all',
       kind: ['all', 'base', 'variant', 'unclassified'].includes(stored?.kind) ? stored.kind : 'all',
       query: typeof stored?.query === 'string' ? stored.query.slice(0, 200) : '',
       filter: ['all', 'missing', 'collected'].includes(stored?.filter) ? stored.filter : 'all',
@@ -92,7 +93,7 @@ import { selectSets, matchesCard } from '/browse.mjs';
     };
     const list = dialog.querySelector('#card-list');
     const cards = Array.from(list.querySelectorAll('.card-item')).map((element) => ({
-      element, kind: element.dataset.kind, name: element.dataset.cardName, number: element.dataset.cardNumber, collected: element.dataset.collected === 'true',
+      element, rarity: element.dataset.rarity, kind: element.dataset.kind, name: element.dataset.cardName, number: element.dataset.cardNumber, collected: element.dataset.collected === 'true',
     }));
     const body = dialog.querySelector('.modal-body');
     const updateCards = () => {
@@ -111,6 +112,9 @@ import { selectSets, matchesCard } from '/browse.mjs';
       cardStates[code] = state;
       persist();
     };
+    const raritySelect = dialog.querySelector('#card-rarity');
+    raritySelect.value = state.rarity;
+    raritySelect.addEventListener('change', () => { state.rarity = raritySelect.value; updateCards(); });
     const kindSelect = dialog.querySelector('#card-kind');
     kindSelect.value = state.kind;
     kindSelect.addEventListener('change', () => { state.kind = kindSelect.value; updateCards(); });
@@ -123,7 +127,7 @@ import { selectSets, matchesCard } from '/browse.mjs';
       state.view = button.dataset.cardView; updateCards();
     }));
     dialog.querySelector('[data-reset-cards]').addEventListener('click', () => {
-      state.query = ''; state.filter = 'all'; state.kind = 'all'; search.value = ''; kindSelect.value = 'all'; updateCards(); search.focus();
+      state.query = ''; state.filter = 'all'; state.kind = 'all'; state.rarity = 'all'; raritySelect.value = 'all'; search.value = ''; kindSelect.value = 'all'; updateCards(); search.focus();
     });
     updateCards();
   }

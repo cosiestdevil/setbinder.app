@@ -39,3 +39,23 @@ test('printing classification combines with ownership and collector search', () 
   assert.equal(matchesCard(unknown, { kind: 'unclassified' }), true);
   assert.equal(matchesCard(unknown, { kind: 'variant' }), false);
 });
+test('rarity combines with printing, ownership and search without hiding unknowns by default', () => {
+  const cards = [
+    { name: 'Hallowed Fountain', number: '265', rarity: 'rare', kind: 'base', collected: false },
+    { name: 'Hallowed Fountain // Hallowed Fountain', number: '347', rarity: 'rare', kind: 'variant', collected: true },
+    { name: 'A mythic', number: '10', rarity: 'mythic', kind: 'base', collected: false },
+    { name: 'Unknown card', number: '11', rarity: 'unknown', kind: 'unclassified', collected: false },
+  ];
+  const select = (state) => cards.filter(card => matchesCard(card, state)).map(card => card.number);
+  assert.deepEqual(select({}), ['265', '347', '10', '11']);
+  assert.deepEqual(select({ rarity: 'rare', kind: 'base', filter: 'missing', query: 'fountain' }), ['265']);
+  assert.deepEqual(select({ rarity: 'rare', kind: 'variant', filter: 'collected', query: '#347' }), ['347']);
+  assert.deepEqual(select({ rarity: 'mythic', kind: 'base', filter: 'missing' }), ['10']);
+  assert.deepEqual(select({ rarity: 'unknown' }), ['11']);
+  assert.deepEqual(select({ rarity: 'common' }), []);
+  assert.deepEqual(select({ rarity: 'all', kind: 'all', filter: 'all', query: '' }), ['265', '347', '10', '11']);
+  for (const rarity of ['common', 'uncommon', 'rare', 'mythic', 'special', 'bonus', 'unknown']) {
+    assert.equal(matchesCard({ ...cards[0], rarity }, { rarity }), true);
+    assert.equal(matchesCard({ ...cards[0], rarity }, { rarity: 'rare' }), rarity === 'rare');
+  }
+});

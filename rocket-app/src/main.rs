@@ -125,12 +125,46 @@ fn set_view(mut set: models::Set, include_cards: bool) -> serde_json::Value {
     let variant_bonus = set.progress.variant_bonus();
     // Both segments share a scale, fitted into the row without clipping bonuses >100%.
     let base_track_width = 100.0 / (1.0 + variant_bonus);
+    // Rarity targets describe the full base set, independent of modal filters.
+    let rarity_progress: Vec<_> = if include_cards {
+        models::Rarity::ALL
+            .into_iter()
+            .filter_map(|rarity| {
+                let cards: Vec<_> = set
+                    .cards
+                    .iter()
+                    .filter(|card| {
+                        card.printing_kind == models::PrintingKind::Base && card.rarity == rarity
+                    })
+                    .collect();
+                if cards.is_empty() {
+                    return None;
+                }
+                Some(serde_json::json!({
+                    "rarity": rarity, "label": rarity.label(), "total": cards.len(),
+                    "collected": cards.iter().filter(|card| card.collected == Some(true)).count(),
+                }))
+            })
+            .collect()
+    } else {
+        vec![]
+    };
     // Ownership is already reflected on each card; never serialize it twice.
     set.collected_cards.clear();
     if !include_cards {
         set.cards.clear();
     }
+    let rarity_labels: Vec<_> = set.cards.iter().map(|card| card.rarity.label()).collect();
     let mut value = serde_json::to_value(set).expect("Set contains only serializable fields");
+    for (card, label) in value["cards"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .zip(rarity_labels)
+    {
+        card["rarity_label"] = label.into();
+    }
+    value["rarity_progress"] = rarity_progress.into();
     value["available"] = available.into();
     value["base_available"] = base_available.into();
     value["base_percentage"] = format!("{:.2}%", base_completion * 100.0).into();
@@ -429,7 +463,46 @@ mod tests {
     fn details_fixture() -> Template {
         let mut set = large_set("tst", 600);
         set.cards[0].scryfall_id = Some("19cba6be-7291-4788-9241-87dad3b68363".into());
+        set.cards[0].rarity = models::Rarity::Rare;
         Template::render("set-details", set_view(set, true))
+    }
+    #[test]
+    fn rarity_completion_counts_exact_base_printings_only() {
+        use models::{PrintingKind::*, Rarity::*};
+        let mut set = large_set("tst", 9);
+        for (card, (rarity, kind, collected)) in set.cards.iter_mut().zip([
+            (Common, Base, Some(true)),
+            (Common, Base, Some(false)),
+            (Rare, Base, Some(false)),
+            (Rare, Variant, Some(true)),
+            (Mythic, Base, None),
+            (Mythic, Unclassified, Some(true)),
+            (Unknown, Base, Some(true)),
+            (Special, Base, Some(true)),
+            (Bonus, Variant, Some(true)),
+        ]) {
+            card.rarity = rarity;
+            card.printing_kind = kind;
+            card.collected = collected;
+        }
+        let view = set_view(set.clone(), true);
+        assert_eq!(
+            view["rarity_progress"],
+            serde_json::json!([
+                {"rarity":"common", "label":"Common", "total":2, "collected":1},
+                {"rarity":"rare", "label":"Rare", "total":1, "collected":0},
+                {"rarity":"mythic", "label":"Mythic", "total":1, "collected":0},
+                {"rarity":"special", "label":"Special", "total":1, "collected":1},
+                {"rarity":"unknown", "label":"Unknown rarity", "total":1, "collected":1},
+            ])
+        );
+        let overview = set_view(set, false);
+        assert_eq!(overview["rarity_progress"], serde_json::json!([]));
+        assert_eq!(overview["cards"], serde_json::json!([]));
+        assert_eq!(
+            set_view(large_set("empty", 0), true)["rarity_progress"],
+            serde_json::json!([])
+        );
     }
     #[rocket::async_test]
     async fn large_collection_overview_omits_card_payloads() {
@@ -464,6 +537,12 @@ mod tests {
         assert!(details.contains("&lt;script&gt;"));
         assert!(!details.contains("<script>"));
         assert!(details.contains("id=\"card-kind\""));
+        assert!(details.contains("id=\"card-rarity\""));
+        assert!(details.contains("data-rarity=\"rare\""));
+        assert!(details.contains("class=\"rarity-label rare\">Rare</span>"));
+        assert!(details.contains("Base completion by rarity"));
+        assert!(details.contains("<dd>0 / 1</dd>"));
+        assert!(details.contains("Unknown rarity"));
         assert_eq!(details.matches("class=\"card-item\"").count(), 600);
         assert_eq!(details.matches("class=\"card-link\"").count(), 1);
         assert!(
