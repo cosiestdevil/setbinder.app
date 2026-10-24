@@ -2,13 +2,29 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="{{description}}">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="{{description}}" />
     <title>{{title}}</title>
-    <link href="https://cdn.jsdelivr.net/npm/keyrune@latest/css/keyrune.css" rel="stylesheet" type="text/css" />
-    <link href="/style.css" rel="stylesheet" type="text/css" /> 
+    <script>
+      try {
+        const theme = localStorage.getItem('setbinder-theme');
+        if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+      } catch (_) {}
+    </script>
+    <link href="https://cdn.jsdelivr.net/npm/keyrune@3.19.0/css/keyrune.css" rel="stylesheet" />
+    <link href="/style.css" rel="stylesheet" />
+    <script src="/app.js" defer></script>
 </head>
 <body>
-{{> @partial-block}}    
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Set Binder home"><span class="brand-mark" aria-hidden="true">S<span>B</span></span>Set Binder<span class="brand-caption">A home for every printing</span></a>
+      <div class="header-actions">
+        <a class="quiet-link" href="/">Change collection</a>
+        <label class="theme-control"><span class="sr-only">Appearance</span><select id="theme" aria-label="Appearance"><option value="system">System theme</option><option value="light">Light theme</option><option value="dark">Dark theme</option></select></label>
+      </div>
+    </header>
+    <main id="main" class="page">{{> @partial-block}}</main>
+    <footer class="site-footer"><span>A collection, one card at a time.</span><span>Collection data from Archidekt · Card data &amp; artwork from Scryfall</span></footer>
 </body>
 </html>

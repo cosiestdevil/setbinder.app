@@ -1,77 +1,25 @@
 {{#> layout}}
-<h1>Archidekt Live Set Completion</h1>
-<table>
-  <thead>
-    <tr>
-      <th>Set Code</th>
-      <th>Set Name</th>
-      <th>Completion</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-    {{#each sets}}
-    <tr>
-      <td><i class="ss ss-{{this.code}}"></i>&nbsp;{{this.code}}</td>
-      <td>{{#if this.name}}{{this.name}}{{else}}Unknown Set{{/if}}</td>
-      <td>{{this.set_percentage}}
-        <br />
-        {{this.collected_count}} / {{this.set_count}} cards
-      </td>
-      <td><button data-open="dialog-{{this.code}}">Cards</button>
-        <template id="dialog-{{this.code}}">
-          <div class="modal-content">
-            <form method="dialog" class="modal-header">
-              <h2><i class="ss ss-{{this.code}}"></i>&nbsp;{{this.code}}
-                -
-                {{#if this.name}}{{this.name}}{{else}}Unknown Set{{/if}}
-                <br />
-                <small>{{this.set_percentage}}
-                  <br />
-                  {{this.collected_count}} / {{this.set_count}} cards</small>
-              </h2>
-              <button>X</button>
-            </form>
-            <ul class="grid modal-body">
-              {{#each this.cards}}
-              <li>
-                <figure>
-                  <img loading="lazy" class="{{#unless this.collected}}disabled{{/unless}}"
-                    src="https://setbinder.app/cdn-cgi/image/width=146,height=204,format=avif/{{this.image}}"
-                    title="{{#if this.collected}}Collected{{else}}Not Collected{{/if}}" />
-                  <figcaption>{{this.collector_number}} - {{this.name}}</figcaption>
-                </figure>
-              </li>
-              {{/each}}
-            </ul>
-          </div>
-        </template>
-      </td>
-    </tr>
-    {{/each}}
-  </tbody>
-</table>
-<dialog id="set-dialog" closedby="any">
-
-</dialog>
-<script>
-  const shell = document.getElementById('set-dialog');
-  function mountFromTemplate(tplId) {
-    shell.replaceChildren(); // if something was there from a previous open
-    const tpl = document.getElementById(tplId);
-    const frag = tpl.content.cloneNode(true); // DocumentFragment (fast)
-    shell.append(frag);
-  }
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-open]');
-    if (!btn) return;
-    mountFromTemplate(btn.dataset.open);
-    shell.showModal();
-  });
-  shell.addEventListener('close', () => {
-    // Read result if you used <form method="dialog">
-    // console.log('Result:', shell.returnValue);
-    shell.replaceChildren(); // free memory; remove if you want to keep state
-  });
-</script>
+<section class="collection-heading"><div><p class="eyebrow">YOUR SET BINDER · COLLECTION {{collection_id}}</p><h1>Every set tells a story.</h1><p class="lede">Find the gaps. Watch your collection grow.</p></div><a class="quiet-link external-link" href="https://archidekt.com/collection/v2/{{collection_id}}/" target="_blank" rel="noopener noreferrer">View on Archidekt <span aria-hidden="true">↗</span></a></section>
+<dl class="collection-stats"><div><dt>Sets in collection</dt><dd>{{set_count}}</dd></div><div><dt>Sets complete</dt><dd>{{completed_count}}<span class="stat-detail">every printing matched</span></dd></div><div><dt>Printings matched</dt><dd>{{matched_count}}<span class="stat-detail">across known sets</span></dd></div></dl>
+<div class="section-heading"><h2>Your sets <span class="count-label">{{set_count}}</span></h2><p>Ordered by completion</p></div>
+<p class="collection-explanation">Completion includes variant printings, counts each collector number once, and does not distinguish foil finishes or quantities. Only sets in your collection are shown.</p>
+<div class="set-list" id="set-list">
+{{#each sets}}
+<article class="set-row">
+  <div class="set-identity"><span class="set-symbol" aria-hidden="true"><i class="ss ss-{{code}}"></i></span><div><span class="set-code">{{code}}</span><h3>{{#if name}}{{name}}{{else}}Unknown set{{/if}}</h3></div></div>
+  <div class="set-progress">{{#if available}}<div class="progress-heading"><span class="percentage">{{set_percentage}}</span>{{#if complete}}<span class="badge collected">Complete</span>{{else}}<span class="missing-count">{{missing_count}} missing</span>{{/if}}</div><progress value="{{collected_count}}" max="{{set_count}}" aria-label="{{#if name}}{{name}}{{else}}{{code}}{{/if}} completion">{{set_percentage}}</progress><p class="progress-caption">{{collected_count}} of {{set_count}} printings collected</p>{{else}}<p class="unavailable">Set data unavailable</p><p class="progress-caption">We couldn't match this set to the card database.</p>{{/if}}</div>
+  <button class="button view-set" data-open="dialog-{{code}}" aria-haspopup="dialog" aria-label="View {{#if name}}{{name}}{{else}}{{code}}{{/if}}">View set <span aria-hidden="true">↗</span></button>
+  <template id="dialog-{{code}}">
+    <header class="modal-header"><div><p class="eyebrow">{{code}} · SET DETAILS</p><h2 id="dialog-title">{{#if name}}{{name}}{{else}}Unknown set{{/if}}</h2><p>{{#if available}}{{collected_count}} of {{set_count}} collected · {{missing_count}} missing{{else}}Set data unavailable{{/if}}</p></div><button class="icon-button" data-close aria-label="Close set details">✕</button></header>
+    <div class="modal-body">
+      {{#if available}}<ul class="card-grid">
+        {{#each cards}}<li class="card-item"><figure><div class="card-art">{{#if image}}<img loading="lazy" width="146" height="204" src="{{image}}" alt="{{name}}" />{{else}}<div class="art-placeholder">Artwork unavailable</div>{{/if}}<span class="badge {{#if collected}}collected{{else}}missing{{/if}}">{{#if collected}}✓ Collected{{else}}Missing{{/if}}</span></div><figcaption><span class="collector-number">#{{collector_number}}</span><span class="card-name">{{name}}</span></figcaption></figure></li>{{/each}}
+      </ul>{{else}}<div class="empty-state"><h3>This set isn't in our card database yet.</h3><p>Your collection is safe. Completion will be available when we can match its printings.</p></div>{{/if}}
+    </div>
+  </template>
+</article>
+{{else}}<div class="empty-state"><h3>A fresh binder.</h3><p>No cards were found in this collection. Add some cards on Archidekt, then return here.</p><a class="button" href="/">Try another collection</a></div>{{/each}}
+</div>
+<dialog id="set-dialog" aria-labelledby="dialog-title"></dialog>
+<noscript><p class="field-error">Enable JavaScript to open set details and change appearance.</p></noscript>
 {{/layout}}

@@ -1,8 +1,17 @@
 {{#> layout}}
-    <h1>Set Completion Tracker</h1>
-    <form method="post" action="/">
-        <label for="url">Enter URL:</label>
-        <input id="url" name="url" type="text" placeholder="https://archidekt.com/collection/v2/1234" />
-        <button type="submit">Submit</button>
+<section class="welcome">
+  <div class="welcome-copy"><p class="eyebrow">THE COLLECTOR'S COMPANION</p><h1>A little closer<br />to complete.</h1><p class="lede">Turn your Archidekt collection into a clear view of every set. See what you have, and find what comes next.</p><div class="welcome-note"><span class="note-symbol" aria-hidden="true">↗</span><p>Your collection stays on Archidekt.<br /><strong>Bring the link. We'll arrange the cards.</strong></p></div></div>
+  <section class="entry-panel" aria-labelledby="entry-title"><p class="eyebrow">OPEN YOUR BINDER</p><h2 id="entry-title">Start with your collection.</h2><p>Paste the link to your public Archidekt collection. No account needed here.</p>
+    <form method="post" action="/" data-loading-form>
+      <label for="url">Archidekt collection URL</label>
+      <input id="url" name="url" type="text" inputmode="url" autocomplete="url" spellcheck="false" required maxlength="2048" placeholder="https://archidekt.com/collection/v2/1234" value="{{url}}" aria-describedby="url-hint{{#if error}} url-error{{/if}}" {{#if error}}aria-invalid="true"{{/if}} />
+      <p id="url-hint" class="field-hint">On Archidekt, open your collection and copy its URL. Make sure the collection is public.</p>
+      {{#if error}}<p id="url-error" class="field-error" role="alert">{{error}}</p>{{/if}}
+      <button class="button primary" type="submit"><span data-submit-label>View collection</span><span aria-hidden="true">↗</span></button>
+      <p class="loading-message" role="status" hidden>Fetching your collection and matching its printings. Larger collections may take a moment.</p>
     </form>
+    <div class="entry-footnote"><span aria-hidden="true">✓</span> Read-only access. Your collection is never changed.</div>
+  </section>
+</section>
+<section class="steps" aria-label="How it works"><div><span class="step-number">01</span><h2>Bring your collection</h2><p>Connect with a public Archidekt link.</p></div><div><span class="step-number">02</span><h2>See your progress</h2><p>Every printing, organised by set.</p></div><div><span class="step-number">03</span><h2>Find the next card</h2><p>See the gaps in your growing binder.</p></div></section>
 {{/layout}}
