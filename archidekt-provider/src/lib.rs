@@ -84,6 +84,7 @@ impl From<ArchidektCard> for Card {
             scryfall_id: value.scryfall_id,
             collected: None,
             image: None,
+            printing_kind: PrintingKind::Unclassified,
         }
     }
 }

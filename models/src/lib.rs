@@ -11,7 +11,43 @@ pub struct Set {
     pub set_count: usize,
     pub collected_count: usize,
     pub set_completion: f32,
+    pub progress: PrintingProgress,
 }
+/// Counts exact printings: owning a variant does not imply owning its base printing.
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct PrintingProgress {
+    pub base_count: usize,
+    pub base_collected: usize,
+    pub variant_count: usize,
+    pub variant_collected: usize,
+    pub unclassified_count: usize,
+    pub unclassified_collected: usize,
+}
+impl PrintingProgress {
+    pub fn base_completion(&self) -> f32 {
+        self.ratio(self.base_collected)
+    }
+    pub fn variant_bonus(&self) -> f32 {
+        self.ratio(self.variant_collected)
+    }
+    fn ratio(&self, count: usize) -> f32 {
+        if self.base_count == 0 {
+            0.0
+        } else {
+            count as f32 / self.base_count as f32
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum PrintingKind {
+    Base,
+    Variant,
+    #[default]
+    Unclassified,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SetsResponse {
     pub data: Vec<ScryfallSet>,
@@ -30,8 +66,8 @@ pub struct Card {
     pub scryfall_id: Option<String>,
     pub collected: Option<bool>,
     pub image: Option<String>,
+    pub printing_kind: PrintingKind,
 }
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ScryfallCardList {
@@ -45,6 +81,7 @@ pub struct ScryfallCard {
     pub collector_number: String,
     pub set: String,
     pub id: String,
+    pub oracle_id: Option<String>,
     pub image_uris: Option<HashMap<String, String>>,
     pub card_faces: Option<Vec<ScryfallCardFace>>,
 }
@@ -71,6 +108,7 @@ impl From<ScryfallCard> for Card {
             collector_number: value.collector_number,
             scryfall_id: Some(value.id),
             collected: Some(false),
+            printing_kind: PrintingKind::Unclassified,
             image, //: image.map(|i| format!("/scryfall-thumb.webp?url={}", urlencoding::encode(&i.clone())))
         }
     }

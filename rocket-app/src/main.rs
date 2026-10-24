@@ -238,6 +238,7 @@ mod tests {
             set_count: total,
             collected_count: collected,
             set_completion: 1.0,
+            progress: models::PrintingProgress::default(),
         };
         collection_page(
             "1234",

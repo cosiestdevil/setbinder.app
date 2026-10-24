@@ -51,5 +51,20 @@ fn local_file_errors_are_returned() {
 }
 #[test]
 fn embedded_database_decodes() {
-    assert!(!scryfall::get_bulk().is_empty());
+    let cards = scryfall::get_bulk();
+    assert!(!cards.is_empty());
+    assert!(
+        cards.iter().any(|card| card.oracle_id.is_some()),
+        "bulk serialization must retain Oracle IDs"
+    );
+}
+
+#[test]
+fn oracle_identity_is_preserved_and_optional() {
+    let input =
+        r#"[{"name":"Card","collector_number":"2a","set":"tst","id":"id","oracle_id":"oracle"}]"#;
+    let cards = build_data::read_cards(input.as_bytes(), false).unwrap();
+    assert_eq!(cards[0].oracle_id.as_deref(), Some("oracle"));
+    let cards = build_data::read_cards(CARD.as_bytes(), true).unwrap();
+    assert!(cards[0].oracle_id.is_none());
 }
