@@ -236,29 +236,45 @@ fn set_view(mut set: models::Set, include_cards: bool) -> serde_json::Value {
     // Both segments share a scale, fitted into the row without clipping bonuses >100%.
     let base_track_width = 100.0 / (1.0 + variant_bonus);
     // Rarity targets describe the full base set, independent of modal filters.
-    let rarity_progress: Vec<_> = if include_cards {
-        models::Rarity::ALL
-            .into_iter()
-            .filter_map(|rarity| {
-                let cards: Vec<_> = set
-                    .cards
-                    .iter()
-                    .filter(|card| {
-                        card.printing_kind == models::PrintingKind::Base && card.rarity == rarity
-                    })
-                    .collect();
-                if cards.is_empty() {
-                    return None;
-                }
-                Some(serde_json::json!({
-                    "rarity": rarity, "label": rarity.label(), "total": cards.len(),
-                    "collected": cards.iter().filter(|card| card.collected == Some(true)).count(),
-                }))
-            })
-            .collect()
-    } else {
-        vec![]
-    };
+    let rarity_progress: Vec<_> = models::Rarity::ALL
+        .into_iter()
+        .filter_map(|rarity| {
+            let cards: Vec<_> = set
+                .cards
+                .iter()
+                .filter(|card| {
+                    card.printing_kind == models::PrintingKind::Base && card.rarity == rarity
+                })
+                .collect();
+            if cards.is_empty() {
+                return None;
+            }
+            Some(serde_json::json!({
+                "rarity": rarity, "label": rarity.label(), "total": cards.len(),
+                "collected": cards.iter().filter(|card| card.collected == Some(true)).count(),
+            }))
+        })
+        .collect();
+    let rarity_segments: Vec<_> = rarity_progress
+        .iter()
+        .map(|rarity| {
+            let mut segment = rarity.clone();
+            let collected = rarity["collected"].as_u64().unwrap() as f64;
+            segment["width"] = format!(
+                "{:.6}",
+                collected / set.progress.base_count.max(1) as f64 * 100.0
+            )
+            .into();
+            let missing = rarity["total"].as_u64().unwrap() - rarity["collected"].as_u64().unwrap();
+            segment["missing"] = missing.into();
+            segment["missing_width"] = format!(
+                "{:.6}",
+                missing as f64 / set.progress.base_count.max(1) as f64 * 100.0
+            )
+            .into();
+            segment
+        })
+        .collect();
     // Ownership is already reflected on each card; never serialize it twice.
     set.collected_cards.clear();
     if !include_cards {
@@ -275,6 +291,7 @@ fn set_view(mut set: models::Set, include_cards: bool) -> serde_json::Value {
         card["rarity_label"] = label.into();
     }
     value["rarity_progress"] = rarity_progress.into();
+    value["rarity_segments"] = rarity_segments.into();
     value["available"] = available.into();
     value["base_available"] = base_available.into();
     value["base_percentage"] = format!("{:.2}%", base_completion * 100.0).into();
@@ -740,7 +757,11 @@ mod tests {
             assert!(html.contains(&format!("data-details-url=\"/archidekt/1234/sets/{code}\"")));
         }
         assert!(html.contains("Sets in collection</dt><dd>4"));
-        assert_eq!(html.matches("value=\"0\" max=\"2\"").count(), 4);
+        assert_eq!(
+            html.matches("aria-label=\"Base printings collected\"")
+                .count(),
+            4
+        );
     }
 
     #[test]
@@ -775,6 +796,8 @@ mod tests {
             card.printing_kind = kind;
             card.collected = collected;
         }
+        set.progress.base_count = 6;
+        set.progress.base_collected = 3;
         let view = set_view(set.clone(), true);
         assert_eq!(
             view["rarity_progress"],
@@ -786,8 +809,44 @@ mod tests {
                 {"rarity":"unknown", "label":"Unknown rarity", "total":1, "collected":1},
             ])
         );
+        let segments = view["rarity_segments"].as_array().unwrap();
+        assert_eq!(segments.len(), 5, "only base rarities get sections");
+        assert_eq!(segments[0]["width"], "16.666667");
+        assert_eq!(segments[0]["collected"], 1);
+        assert_eq!(segments[1]["width"], "0.000000");
+        assert_eq!(
+            segments[1]["collected"], 0,
+            "owned variants do not fill rarity sections"
+        );
+        let total_width: f64 = segments
+            .iter()
+            .map(|segment| segment["width"].as_str().unwrap().parse::<f64>().unwrap())
+            .sum();
+        assert!(
+            (total_width - 50.0).abs() < 0.00001,
+            "stacked widths must sum to base completion"
+        );
+        assert_eq!(segments[0]["missing"], 1);
+        assert_eq!(segments[0]["missing_width"], "16.666667");
+        assert_eq!(segments[1]["missing"], 1);
+        assert_eq!(segments[3]["missing_width"], "0.000000");
+        let missing_width: f64 = segments
+            .iter()
+            .map(|segment| {
+                segment["missing_width"]
+                    .as_str()
+                    .unwrap()
+                    .parse::<f64>()
+                    .unwrap()
+            })
+            .sum();
+        assert!(
+            (total_width + missing_width - 100.0).abs() < 0.00001,
+            "owned and missing stacks must fill the base target exactly"
+        );
         let overview = set_view(set, false);
-        assert_eq!(overview["rarity_progress"], serde_json::json!([]));
+        assert_eq!(overview["rarity_progress"], view["rarity_progress"]);
+        assert_eq!(overview["rarity_segments"], view["rarity_segments"]);
         assert_eq!(overview["cards"], serde_json::json!([]));
         assert_eq!(
             set_view(large_set("empty", 0), true)["rarity_progress"],
@@ -834,6 +893,9 @@ mod tests {
         assert!(details.contains("data-rarity=\"rare\""));
         assert!(details.contains("class=\"rarity-label rare\">Rare</span>"));
         assert!(details.contains("Base completion by rarity"));
+        assert!(details.contains("aria-label=\"Rare base printings collected: 0 of 1\""));
+        assert!(details.contains("title=\"Rare: 0 / 1 base printings\""));
+        assert!(details.contains("aria-label=\"Rare base printings missing: 1 of 1\""));
         assert!(details.contains("<dd>0 / 1</dd>"));
         assert!(details.contains("Unknown rarity"));
         assert_eq!(details.matches("class=\"card-item\"").count(), 600);
