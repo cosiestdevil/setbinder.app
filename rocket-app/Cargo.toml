@@ -11,6 +11,7 @@ doctest = false
 
 
 [build-dependencies]
+sha2 = "0.10.9"
 lightningcss = "1.0.0-alpha.67"
 path-slash="0.2"
 
@@ -37,3 +38,6 @@ git = "https://github.com/Thelonedevil/Rocket/"
 branch = "v0.5"
 features = ["handlebars"]
 
+
+[dev-dependencies]
+sha2 = "0.10.9"

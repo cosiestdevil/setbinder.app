@@ -73,3 +73,17 @@ docker build --target dependencies -t setbinder-build-deps .
 docker build --cache-from setbinder-build-deps -t setbinder .
 docker run --rm -p 8080:8080 setbinder
 ```
+
+## Browser and CDN caching
+
+The app builds content-hashed URLs for its CSS, entry JavaScript, and browse
+module under `/assets/`. The entry module imports the hashed browse URL, so
+changing that dependency also changes the entry module's hash. Unchanged assets
+keep the same URLs between builds.
+
+Successful hashed asset responses use
+`Cache-Control: public, max-age=31536000, immutable`. All other responses,
+including HTML, collection details, errors, and the legacy asset URLs, use
+`Cache-Control: no-store`. Keep Cloudflare rules respecting these origin headers;
+HTML must reach the new deployment to discover its asset URLs. A deployment does
+not need a cache purge for changed assets because their paths change.

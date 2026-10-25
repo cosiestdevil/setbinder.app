@@ -344,7 +344,10 @@ fn style() -> (ContentType, &'static str) {
     (ContentType::CSS, CSS)
 }
 
-const APP_JS: &str = include_str!("../static/app.js");
+mod assets {
+    include!(concat!(env!("OUT_DIR"), "/assets.rs"));
+}
+const APP_JS: &str = assets::APP_JS;
 #[get("/app.js")]
 fn app_js() -> (ContentType, &'static str) {
     (ContentType::JavaScript, APP_JS)
@@ -356,36 +359,90 @@ fn browse_js() -> (ContentType, &'static str) {
     (ContentType::JavaScript, BROWSE_JS)
 }
 
+#[get("/assets/<file>")]
+fn versioned_asset(file: &str) -> Option<(ContentType, &'static str)> {
+    let path = format!("/assets/{file}");
+    match path.as_str() {
+        assets::CSS_URL => Some((ContentType::CSS, CSS)),
+        assets::APP_URL => Some((ContentType::JavaScript, APP_JS)),
+        assets::BROWSE_URL => Some((ContentType::JavaScript, BROWSE_JS)),
+        _ => None,
+    }
+}
+
+struct CachePolicy;
+#[rocket::async_trait]
+impl Fairing for CachePolicy {
+    fn info(&self) -> rocket::fairing::Info {
+        rocket::fairing::Info {
+            name: "Asset and page cache policy",
+            kind: rocket::fairing::Kind::Response,
+        }
+    }
+    async fn on_response<'r>(
+        &self,
+        request: &'r rocket::Request<'_>,
+        response: &mut rocket::Response<'r>,
+    ) {
+        let immutable = response.status() == rocket::http::Status::Ok
+            && versioned_asset(
+                request
+                    .uri()
+                    .path()
+                    .as_str()
+                    .strip_prefix("/assets/")
+                    .unwrap_or(""),
+            )
+            .is_some();
+        response.set_raw_header(
+            "Cache-Control",
+            if immutable {
+                "public, max-age=31536000, immutable"
+            } else {
+                "no-store"
+            },
+        );
+    }
+}
+
 #[launch]
 fn rocket() -> _ {
-    rocket::build().attach(templates()).mount(
-        "/",
-        routes![
-            collection,
-            set_details,
-            index,
-            process_url,
-            style,
-            app_js,
-            browse_js
-        ],
-    )
+    rocket::build()
+        .attach(templates())
+        .attach(CachePolicy)
+        .mount(
+            "/",
+            routes![
+                collection,
+                set_details,
+                index,
+                process_url,
+                style,
+                app_js,
+                browse_js,
+                versioned_asset
+            ],
+        )
 }
-#[cfg(debug_assertions)]
 fn templates() -> impl Fairing {
-    println!("Debug Templates");
-    Template::fairing()
-}
-#[cfg(not(debug_assertions))]
-fn templates() -> impl Fairing {
-    println!("Embedded Templates");
-    Template::custom(|(engines, templates)| {
+    Template::custom(|(engines, _templates)| {
+        rocket_dyn_templates::handlebars::handlebars_helper!(asset_url: |name: str| {
+            match name {
+                "style" => assets::CSS_URL,
+                "app" => assets::APP_URL,
+                _ => "",
+            }
+        });
+        engines
+            .handlebars
+            .register_helper("asset_url", Box::new(asset_url));
+        #[cfg(not(debug_assertions))]
         for (name, content) in templates::TEMPLATES {
             engines
                 .handlebars
                 .register_template_string(name, content)
                 .unwrap();
-            templates.insert(
+            _templates.insert(
                 name.to_string(),
                 TemplateInfo {
                     path: None,
@@ -405,6 +462,53 @@ mod templates {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[rocket::async_test]
+    async fn hashed_assets_and_html_have_distinct_cache_policies() {
+        let client = rocket::local::asynchronous::Client::tracked(rocket())
+            .await
+            .unwrap();
+        let response = client.get("/").dispatch().await;
+        assert_eq!(
+            response.headers().get_one("Cache-Control"),
+            Some("no-store")
+        );
+        let html = response.into_string().await.unwrap();
+        assert!(html.contains(&format!("href=\"{}\"", assets::CSS_URL)));
+        assert!(html.contains(&format!("src=\"{}\"", assets::APP_URL)));
+        assert!(!html.contains("href=\"/style.css\""));
+        for (url, expected_type, expected_body) in [
+            (assets::CSS_URL, ContentType::CSS, CSS),
+            (assets::APP_URL, ContentType::JavaScript, APP_JS),
+            (assets::BROWSE_URL, ContentType::JavaScript, BROWSE_JS),
+        ] {
+            let response = client.get(url).dispatch().await;
+            assert_eq!(response.status(), rocket::http::Status::Ok);
+            assert_eq!(response.content_type(), Some(expected_type));
+            assert_eq!(
+                response.headers().get_one("Cache-Control"),
+                Some("public, max-age=31536000, immutable")
+            );
+            assert_eq!(response.into_string().await.unwrap(), expected_body);
+        }
+        assert!(APP_JS.contains(assets::BROWSE_URL));
+        assert!(!APP_JS.contains("'/browse.mjs'"));
+        for url in [
+            "/style.css",
+            "/app.js",
+            "/browse.mjs",
+            "/assets/style.invalid.css",
+            "/archidekt/not-a-number",
+        ] {
+            let response = client.get(url).dispatch().await;
+            assert_eq!(
+                response.headers().get_one("Cache-Control"),
+                Some("no-store")
+            );
+        }
+        let response = client.get("/assets/style.invalid.css").dispatch().await;
+        assert_eq!(response.status(), rocket::http::Status::NotFound);
+    }
+
     #[rocket::async_test]
     async fn moxfield_collection_urls_redirect_and_invalid_inputs_do_not_fetch() {
         use rocket::http::{ContentType, Status};
