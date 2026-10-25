@@ -87,3 +87,12 @@ including HTML, collection details, errors, and the legacy asset URLs, use
 `Cache-Control: no-store`. Keep Cloudflare rules respecting these origin headers;
 HTML must reach the new deployment to discover its asset URLs. A deployment does
 not need a cache purge for changed assets because their paths change.
+
+Card artwork uses the `setbinder.app/cdn-cgi/image/` transformation endpoint
+with automatic format selection, quality 80, and responsive widths from 160 to
+640 pixels. Only HTTPS `cards.scryfall.io` sources are transformed. Source query
+strings are preserved so Scryfall's artwork updates get new cache keys. Cloudflare
+serves and caches these transformations before the request reaches Rocket, so the
+app's `no-store` policy does not apply to them. Keep image transformations enabled
+for this zone and permit `cards.scryfall.io` as a source. If a transformation fails,
+the browser retries the original Scryfall image once.

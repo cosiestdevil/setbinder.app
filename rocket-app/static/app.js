@@ -115,6 +115,17 @@ import { selectSets, groupSets, matchesCard, missingCardList, cardViewState, set
     }
   }
 
+  // Image errors do not bubble, so capture them for lazy-loaded dialog cards.
+  dialog.addEventListener('error', (event) => {
+    const image = event.target;
+    if (!image.matches?.('img[data-original-image]')) return;
+    const original = image.dataset.originalImage;
+    delete image.dataset.originalImage;
+    image.removeAttribute('srcset');
+    image.removeAttribute('sizes');
+    image.src = original;
+  }, true);
+
   let opener;
   function setupCards(code) {
     const search = dialog.querySelector('#card-search');

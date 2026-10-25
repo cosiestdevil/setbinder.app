@@ -223,6 +223,32 @@ fn release_groups(sets: Vec<models::Set>) -> Vec<serde_json::Value> {
     groups
 }
 
+/// Only resize Scryfall artwork through our Cloudflare zone. Keep other image
+/// sources unchanged; source timestamps remain in URLs to invalidate old art.
+fn card_image_sources(original: &str) -> Option<(String, String)> {
+    let source = reqwest::Url::parse(original).ok()?;
+    if source.scheme() != "https"
+        || source.host_str() != Some("cards.scryfall.io")
+        || !source.username().is_empty()
+        || source.password().is_some()
+        || source.port().is_some()
+    {
+        return None;
+    }
+    let source = source.as_str().replace(',', "%2C");
+    let resized = |width| {
+        format!(
+            "https://setbinder.app/cdn-cgi/image/width={width},fit=scale-down,format=auto,quality=80/{source}"
+        )
+    };
+    let srcset = [160, 240, 320, 480, 640]
+        .into_iter()
+        .map(|width| format!("{} {width}w", resized(width)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    Some((resized(320), srcset))
+}
+
 fn set_view(mut set: models::Set, include_cards: bool) -> serde_json::Value {
     let available = set.set_count > 0;
     let base_available = set.progress.base_count > 0;
@@ -289,6 +315,13 @@ fn set_view(mut set: models::Set, include_cards: bool) -> serde_json::Value {
         .zip(rarity_labels)
     {
         card["rarity_label"] = label.into();
+        if let Some(original) = card["image"].as_str().map(str::to_owned) {
+            if let Some((image, srcset)) = card_image_sources(&original) {
+                card["original_image"] = original.into();
+                card["image"] = image.into();
+                card["image_srcset"] = srcset.into();
+            }
+        }
     }
     value["rarity_progress"] = rarity_progress.into();
     value["rarity_segments"] = rarity_segments.into();
@@ -462,6 +495,47 @@ mod templates {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn responsive_card_images_only_use_scryfall_and_preserve_versions() {
+        let original = "https://cards.scryfall.io/png/front/a/b/card.png?123";
+        let (image, srcset) = card_image_sources(original).unwrap();
+        assert!(image.starts_with("https://setbinder.app/cdn-cgi/image/width=320,"));
+        assert!(image.contains("fit=scale-down,format=auto,quality=80/"));
+        assert!(image.ends_with(original));
+        for width in [160, 240, 320, 480, 640] {
+            assert!(srcset.contains(&format!("width={width},")));
+            assert!(srcset.contains(&format!("?123 {width}w")));
+        }
+        assert_ne!(
+            image,
+            card_image_sources(&original.replace("?123", "?456"))
+                .unwrap()
+                .0
+        );
+        for url in [
+            "invalid",
+            "http://cards.scryfall.io/card.png",
+            "https://example.com/card.png",
+            "https://cards.scryfall.io.evil.example/card.png",
+            "https://user@cards.scryfall.io/card.png",
+            "https://cards.scryfall.io:8080/card.png",
+        ] {
+            assert!(
+                card_image_sources(url).is_none(),
+                "unexpected resize source: {url}"
+            );
+        }
+        let mut set = large_set("test", 2);
+        set.cards[0].image = Some(original.into());
+        set.cards[1].image = None;
+        let details = set_view(set, true);
+        assert_eq!(details["cards"][0]["original_image"], original);
+        assert_eq!(details["cards"][0]["image"], image);
+        assert_eq!(details["cards"][0]["image_srcset"], srcset);
+        assert!(details["cards"][1]["image"].is_null());
+        assert!(details["cards"][1]["image_srcset"].is_null());
+    }
+
     #[rocket::async_test]
     async fn hashed_assets_and_html_have_distinct_cache_policies() {
         let client = rocket::local::asynchronous::Client::tracked(rocket())
@@ -816,6 +890,10 @@ mod tests {
         let mut set = large_set("tst", 600);
         set.cards[0].scryfall_id = Some("19cba6be-7291-4788-9241-87dad3b68363".into());
         set.cards[0].rarity = models::Rarity::Rare;
+        set.cards[0].image = Some(
+            "https://cards.scryfall.io/png/front/1/9/19cba6be-7291-4788-9241-87dad3b68363.png?123"
+                .into(),
+        );
         Template::render("set-details", set_view(set, true))
     }
     #[get("/releases-fixture")]
@@ -997,6 +1075,11 @@ mod tests {
         assert!(details.contains("data-rarity=\"rare\""));
         assert!(details.contains("class=\"rarity-label rare\">Rare</span>"));
         assert!(details.contains("Base completion by rarity"));
+        assert!(details.contains("src=\"https://setbinder.app/cdn-cgi/image/width&#x3D;320,"));
+        assert!(details.contains("srcset=\"https://setbinder.app/cdn-cgi/image/width&#x3D;160,"));
+        assert!(details.contains("?123 640w"));
+        assert!(details.contains("data-original-image=\"https://cards.scryfall.io/"));
+        assert!(details.contains("decoding=\"async\""));
         assert!(details.contains("aria-label=\"Rare base printings collected: 0 of 1\""));
         assert!(details.contains("title=\"Rare: 0 / 1 base printings\""));
         assert!(details.contains("aria-label=\"Rare base printings missing: 1 of 1\""));

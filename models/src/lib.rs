@@ -178,7 +178,7 @@ impl From<ScryfallCard> for Card {
             collected: Some(false),
             printing_kind: PrintingKind::Unclassified,
             rarity: value.rarity,
-            image, //: image.map(|i| format!("/scryfall-thumb.webp?url={}", urlencoding::encode(&i.clone())))
+            image,
         }
     }
 }
