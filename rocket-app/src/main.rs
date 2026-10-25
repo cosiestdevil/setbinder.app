@@ -175,15 +175,52 @@ fn collection_page(source: Source, id: &str, sets: Vec<models::Set>) -> Template
         })
         .count();
     let matched_count: usize = sets.iter().map(|set| set.collected_count).sum();
-    let sets: Vec<serde_json::Value> = sets.into_iter().map(|set| set_view(set, false)).collect();
+    let release_groups = release_groups(sets);
     Template::render(
         "sets",
         context! {
             title: "Your collection · Set Binder", description: format!("Set completion for your {} collection.", source.name()),
             provider_name: source.name(), provider_slug: source.slug(), collection_url: source.url(id),
-            collection_id: id, sets, set_count, completed_count, matched_count,
+            collection_id: id, release_groups, set_count, completed_count, matched_count,
         },
     )
+}
+
+// Preserve the completion order of the best matching member, keeping each
+// release contiguous. The browser applies the same rule after filtering.
+fn release_groups(sets: Vec<models::Set>) -> Vec<serde_json::Value> {
+    let mut groups: Vec<serde_json::Value> = Vec::new();
+    let mut indices = std::collections::HashMap::new();
+    for set in sets {
+        let code = set
+            .release
+            .as_ref()
+            .map_or(&set.code, |release| &release.code)
+            .clone();
+        let name = set
+            .release
+            .as_ref()
+            .map(|release| release.name.clone())
+            .or_else(|| set.name.clone())
+            .unwrap_or_else(|| set.code.to_uppercase());
+        let child = code != set.code;
+        let index = *indices.entry(code.clone()).or_insert_with(|| {
+            groups.push(
+                serde_json::json!({"code": code, "name": name, "sets": [], "show_heading": false}),
+            );
+            groups.len() - 1
+        });
+        let group = &mut groups[index];
+        group["sets"]
+            .as_array_mut()
+            .unwrap()
+            .push(set_view(set, false));
+        let count = group["sets"].as_array().unwrap().len();
+        group["set_count"] = count.into();
+        group["single_set"] = (count == 1).into();
+        group["show_heading"] = (group["show_heading"] == true || child || count > 1).into();
+    }
+    groups
 }
 
 fn set_view(mut set: models::Set, include_cards: bool) -> serde_json::Value {
@@ -511,6 +548,7 @@ mod tests {
         let make_set = |code: &str, total, collected| models::Set {
             code: code.into(),
             name: Some(format!("Set {code}")),
+            release: None,
             cards: vec![],
             collected_cards: vec![],
             set_percentage: "100.00%".into(),
@@ -550,6 +588,7 @@ mod tests {
         let make_set = |code: &str, base, owned, variants, bonus, unknown| models::Set {
             code: code.into(),
             name: Some(code.into()),
+            release: None,
             cards: vec![],
             collected_cards: vec![],
             set_percentage: "unused".into(),
@@ -628,6 +667,7 @@ mod tests {
         models::Set {
             code: code.into(),
             name: Some(format!("Set {code}")),
+            release: None,
             cards: vec![card; count],
             collected_cards: vec![],
             set_percentage: "0%".into(),
@@ -656,6 +696,65 @@ mod tests {
         set.cards[0].scryfall_id = Some("19cba6be-7291-4788-9241-87dad3b68363".into());
         set.cards[0].rarity = models::Rarity::Rare;
         Template::render("set-details", set_view(set, true))
+    }
+    #[get("/releases-fixture")]
+    fn releases_fixture() -> Template {
+        let sets = ["fic", "unknown", "fca", "fin"]
+            .into_iter()
+            .map(|code| {
+                let mut set = large_set(code, 2);
+                if code != "unknown" {
+                    set.release = Some(models::SetRelease {
+                        code: "fin".into(),
+                        name: "Final Fantasy".into(),
+                    });
+                }
+                set
+            })
+            .collect();
+        collection_page(Source::Archidekt, "1234", sets)
+    }
+    #[rocket::async_test]
+    async fn renders_related_sets_together_with_individual_progress_and_details() {
+        let client = rocket::local::asynchronous::Client::tracked(
+            rocket().mount("/", routes![releases_fixture]),
+        )
+        .await
+        .unwrap();
+        let html = client
+            .get("/releases-fixture")
+            .dispatch()
+            .await
+            .into_string()
+            .await
+            .unwrap();
+        assert_eq!(html.matches("class=\"release-group\"").count(), 2);
+        assert_eq!(html.matches("class=\"release-heading\"").count(), 1);
+        assert!(html.contains("<h2>Final Fantasy</h2>"));
+        assert!(html.contains("data-release-count>3 sets</span>"));
+        assert!(
+            html.find("data-set-code=\"fin\"").unwrap()
+                < html.find("data-set-code=\"unknown\"").unwrap()
+        );
+        for code in ["fin", "fic", "fca", "unknown"] {
+            assert!(html.contains(&format!("data-details-url=\"/archidekt/1234/sets/{code}\"")));
+        }
+        assert!(html.contains("Sets in collection</dt><dd>4"));
+        assert_eq!(html.matches("value=\"0\" max=\"2\"").count(), 4);
+    }
+
+    #[test]
+    fn child_sets_share_a_heading_without_owning_the_parent() {
+        let mut child = large_set("fic", 2);
+        child.release = Some(models::SetRelease {
+            code: "fin".into(),
+            name: "Final Fantasy".into(),
+        });
+        let groups = release_groups(vec![child]);
+        assert_eq!(groups[0]["code"], "fin");
+        assert_eq!(groups[0]["show_heading"], true);
+        assert_eq!(groups[0]["sets"][0]["code"], "fic");
+        assert_eq!(groups[0]["set_count"], 1);
     }
     #[test]
     fn rarity_completion_counts_exact_base_printings_only() {

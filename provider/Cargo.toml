@@ -9,3 +9,6 @@ doctest = false
 models = {workspace = true}
 scryfall = {workspace = true}
 reqwest = {workspace = true}
+
+[dev-dependencies]
+serde_json = {workspace = true}

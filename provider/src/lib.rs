@@ -135,6 +135,30 @@ fn printing_progress(cards: &[Card]) -> PrintingProgress {
     progress
 }
 
+/// Follow Scryfall's release family, including nested children such as tokens
+/// for a Commander set. Dates alone would merge unrelated products.
+fn set_release(
+    code: &str,
+    metadata: &HashMap<&str, &models::ScryfallSet>,
+) -> Option<models::SetRelease> {
+    let mut set = *metadata.get(code)?;
+    let mut seen = HashSet::from([set.code.as_str()]);
+    while let Some(parent) = set.parent_set_code.as_deref() {
+        let Some(next) = metadata.get(parent) else {
+            break;
+        };
+        // Malformed cyclic metadata must not merge unrelated families.
+        if !seen.insert(next.code.as_str()) {
+            return None;
+        }
+        set = next;
+    }
+    Some(models::SetRelease {
+        code: set.code.clone(),
+        name: set.name.clone().unwrap_or_else(|| set.code.to_uppercase()),
+    })
+}
+
 fn process_cards(
     cards: Vec<Card>,
     bulk_cards: Vec<ScryfallCard>,
@@ -144,6 +168,11 @@ fn process_cards(
     let grouped_cards = group_by_set(&cards);
     //let mut sets = HashMap::new();
     let mut sets = Vec::new();
+    let metadata: HashMap<_, _> = set_data
+        .data
+        .iter()
+        .map(|set| (set.code.as_str(), set))
+        .collect();
     let mut bulk_sets: HashMap<String, Vec<ScryfallCard>> = HashMap::new();
     for card in bulk_cards {
         bulk_sets.entry(card.set.clone()).or_default().push(card);
@@ -168,6 +197,7 @@ fn process_cards(
         sets.push(Set {
             code: key.clone(),
             name: set_name,
+            release: set_release(&key, &metadata),
             set_completion,
             progress,
             set_percentage: if set_cards.is_empty() {
@@ -218,6 +248,79 @@ mod tests {
             rarity: models::Rarity::Unknown,
         }
     }
+    #[test]
+    fn release_families_follow_metadata_even_without_the_main_set_owned() {
+        let metadata: models::SetsResponse = serde_json::from_value(serde_json::json!({"data": [
+            {"code": "fin", "name": "Final Fantasy"},
+            {"code": "fic", "name": "Final Fantasy Commander", "parent_set_code": "fin"},
+            {"code": "fca", "name": "Final Fantasy: Through the Ages", "parent_set_code": "fin"},
+            {"code": "tfic", "parent_set_code": "fic"},
+            {"code": "other", "name": "Unrelated release"}
+        ]}))
+        .unwrap();
+        let sets = super::process_cards(
+            vec![
+                owned("fic", "1"),
+                owned("fca", "1"),
+                owned("tfic", "1"),
+                owned("other", "1"),
+                owned("unknown", "1"),
+            ],
+            vec![],
+            metadata,
+        );
+        for code in ["fic", "fca", "tfic"] {
+            let release = sets
+                .iter()
+                .find(|set| set.code == code)
+                .unwrap()
+                .release
+                .as_ref()
+                .unwrap();
+            assert_eq!(release.code, "fin");
+            assert_eq!(release.name, "Final Fantasy");
+        }
+        assert_eq!(
+            sets.iter()
+                .find(|set| set.code == "other")
+                .unwrap()
+                .release
+                .as_ref()
+                .unwrap()
+                .code,
+            "other"
+        );
+        assert!(
+            sets.iter()
+                .find(|set| set.code == "unknown")
+                .unwrap()
+                .release
+                .is_none()
+        );
+        assert_eq!(sets.len(), 5, "grouping must not add unowned sets");
+    }
+
+    #[test]
+    fn release_metadata_handles_missing_parents_and_cycles() {
+        let sets: models::SetsResponse = serde_json::from_value(serde_json::json!({"data": [
+            {"code": "orphan", "parent_set_code": "missing"},
+            {"code": "a", "parent_set_code": "b"},
+            {"code": "b", "parent_set_code": "a"}
+        ]}))
+        .unwrap();
+        let metadata = sets
+            .data
+            .iter()
+            .map(|set| (set.code.as_str(), set))
+            .collect();
+        assert_eq!(
+            super::set_release("orphan", &metadata).unwrap().code,
+            "orphan"
+        );
+        assert!(super::set_release("a", &metadata).is_none());
+        assert!(super::set_release("b", &metadata).is_none());
+    }
+
     #[test]
     fn natural_collector_order_handles_suffixes_and_large_numbers() {
         let mut numbers = vec![

@@ -6,17 +6,22 @@
 <div class="progress-legend"><span><i class="legend-dot base-dot" aria-hidden="true"></i>Base printings · 0–100%</span><span><i class="legend-dot variant-dot" aria-hidden="true"></i>Variants · bonus beyond 100%</span></div>
 <details class="progress-explanation"><summary>How is progress calculated?</summary><p>For each Oracle ID in a set, the printing with the lowest collector number is the base; all other printings are variants. Collector numbers use natural order (2 before 10, then 10a). This is our collecting rule for every set, including promos and basic lands.</p><p>Green tracks exact base printings owned. Gold adds variants owned ÷ base-set size, so owning a variant never fills a missing base printing. Each bar fits the base target plus the earned bonus; the marker shows 100% base. Cards without an Oracle ID remain unclassified and are excluded from both percentages.</p><p>Each collector number counts once, regardless of quantity or foil finish. Only sets in your collection are shown.</p></details>
 <section class="browse-toolbar" aria-label="Find sets" data-set-controls hidden>
-  <label class="search-field" for="set-search"><span class="sr-only">Search sets</span><input type="search" id="set-search" placeholder="Search by set name or code…" maxlength="200" aria-controls="set-list" /></label>
+  <label class="search-field" for="set-search"><span class="sr-only">Search sets</span><input type="search" id="set-search" placeholder="Search by release, set name or code…" maxlength="200" aria-controls="set-list" /></label>
   <div class="segmented" role="group" aria-label="Base completion filter"><button type="button" data-set-filter="all" aria-pressed="true">All</button><button type="button" data-set-filter="incomplete" aria-pressed="false">Incomplete</button><button type="button" data-set-filter="complete" aria-pressed="false">Complete</button><button type="button" data-set-filter="unavailable" aria-pressed="false">Unavailable</button></div>
   <label class="sort-control" for="set-sort"><span>Sort by</span><select id="set-sort"><option value="completion">Base completion</option><option value="missing">Fewest base missing</option><option value="name">Set name</option></select></label>
 </section>
 <div class="set-list" id="set-list">
+{{#each release_groups}}
+<section class="release-group" data-release-code="{{code}}" data-release-name="{{name}}">
+{{#if show_heading}}<header class="release-heading"><h2>{{name}}</h2><span class="count-label" data-release-count>{{set_count}} {{#if single_set}}set{{else}}sets{{/if}}</span></header>{{/if}}
 {{#each sets}}
 <article class="set-row" data-set-code="{{code}}" data-set-name="{{#if name}}{{name}}{{else}}{{code}}{{/if}}" data-available="{{base_available}}" data-complete="{{complete}}" data-completion="{{base_completion}}" data-missing="{{missing_count}}">
   <div class="set-identity"><span class="set-symbol" aria-hidden="true"><i class="ss ss-{{code}}"></i></span><div><span class="set-code">{{code}}</span><h3>{{#if name}}{{name}}{{else}}Unknown set{{/if}}</h3></div></div>
   <div class="set-progress">{{> progress}}</div>
-  <button class="button view-set" data-open="{{code}}" data-details-url="/{{../provider_slug}}/{{../collection_id}}/sets/{{code}}" aria-haspopup="dialog" aria-label="View {{#if name}}{{name}}{{else}}{{code}}{{/if}}">View set <span aria-hidden="true">↗</span></button>
+  <button class="button view-set" data-open="{{code}}" data-details-url="/{{../../provider_slug}}/{{../../collection_id}}/sets/{{code}}" aria-haspopup="dialog" aria-label="View {{#if name}}{{name}}{{else}}{{code}}{{/if}}">View set <span aria-hidden="true">↗</span></button>
 </article>
+{{/each}}
+</section>
 {{else}}<div class="empty-state"><h3>A fresh binder.</h3><p>No cards were found in this collection. Add some cards on Archidekt, then return here.</p><a class="button" href="/">Try another collection</a></div>{{/each}}
 </div>
 <div class="empty-state" id="set-empty" hidden><h3>No sets match this view.</h3><p>Try another search or completion filter.</p><button class="button" id="reset-sets">Reset set filters</button></div>

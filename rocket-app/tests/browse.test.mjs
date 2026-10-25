@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { selectSets, matchesCard, missingCardList, cardViewState, setViewState, readBrowseUrl, browseSearch } from '../static/browse.mjs';
+import { selectSets, groupSets, matchesCard, missingCardList, cardViewState, setViewState, readBrowseUrl, browseSearch } from '../static/browse.mjs';
 
 const sets = [
   { name: 'Unknown', code: 'unk', available: false, complete: false, missing: 0, completion: 0 },
@@ -102,4 +102,20 @@ test('invalid and oversized URL state is bounded and normalized', () => {
   assert.deepEqual(cardViewState(null), cardViewState());
   assert.deepEqual(setViewState(null), setViewState());
   assert.equal(new URLSearchParams(browseSearch({setCode: 'BAD/SET'})).has('set'), false);
+});
+
+
+test('release search finds sibling sets while filters and sorting remain per set', () => {
+  const family = [
+    { ...sets[1], code: 'fin', name: 'Final Fantasy', releaseCode: 'fin', releaseName: 'Final Fantasy' },
+    { ...sets[3], code: 'fic', name: 'Commander', releaseCode: 'fin', releaseName: 'Final Fantasy' },
+    { ...sets[2], code: 'fca', name: 'Through the Ages', releaseCode: 'fin', releaseName: 'Final Fantasy' },
+  ];
+  assert.deepEqual(selectSets(family, { query: 'final fantasy' }).map(s => s.code), ['fic', 'fin', 'fca']);
+  assert.deepEqual(selectSets(family, { query: 'FIN', filter: 'incomplete', sort: 'missing' }).map(s => s.code), ['fca', 'fin']);
+  assert.deepEqual(selectSets(family, { query: 'FCA' }).map(s => s.code), ['fca']);
+  const grouped = groupSets(selectSets([...family, sets[2], sets[0]]));
+  assert.deepEqual(grouped.map(g => g.code), ['fin', 'alt', 'unk']);
+  assert.deepEqual(grouped[0].sets.map(s => s.code), ['fic', 'fin', 'fca']);
+  assert.deepEqual(groupSets(selectSets(family, { query: 'absent' })), []);
 });

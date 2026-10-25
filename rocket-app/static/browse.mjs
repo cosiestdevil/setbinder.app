@@ -4,7 +4,7 @@ export const normalize = (value) => String(value).normalize('NFD').replace(/\p{M
 export function selectSets(sets, { query = '', filter = 'all', sort = 'completion' } = {}) {
   const terms = normalize(query).split(/\s+/).filter(Boolean);
   const matches = sets.filter((set) => {
-    const text = normalize(`${set.name} ${set.code}`);
+    const text = normalize(`${set.name} ${set.code} ${set.releaseName || ''} ${set.releaseCode || ''}`);
     const status = filter === 'all' || (filter === 'unavailable' && !set.available)
       || (filter === 'complete' && set.complete) || (filter === 'incomplete' && set.available && !set.complete);
     return status && terms.every((term) => text.includes(term));
@@ -15,6 +15,18 @@ export function selectSets(sets, { query = '', filter = 'all', sort = 'completio
     if (a.available !== b.available) return a.available ? -1 : 1;
     return (sort === 'missing' ? a.missing - b.missing : b.completion - a.completion) || byName(a, b);
   });
+}
+
+// Input is already sorted: each release takes its first matching member's
+// position, and members retain their order within the release.
+export function groupSets(sets) {
+  const groups = new Map();
+  for (const set of sets) {
+    const code = set.releaseCode || set.code;
+    if (!groups.has(code)) groups.set(code, { code, sets: [] });
+    groups.get(code).sets.push(set);
+  }
+  return [...groups.values()];
 }
 
 export function matchesCard(card, { query = '', filter = 'all', kind = 'all', rarity = 'all' } = {}) {

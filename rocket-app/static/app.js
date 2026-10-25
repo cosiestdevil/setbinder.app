@@ -1,4 +1,4 @@
-import { selectSets, matchesCard, missingCardList, cardViewState, setViewState, readBrowseUrl, browseSearch } from '/browse.mjs';
+import { selectSets, groupSets, matchesCard, missingCardList, cardViewState, setViewState, readBrowseUrl, browseSearch } from '/browse.mjs';
 
 (() => {
   'use strict';
@@ -49,8 +49,11 @@ import { selectSets, matchesCard, missingCardList, cardViewState, setViewState, 
   };
   const setSearch = document.getElementById('set-search');
   const setSort = document.getElementById('set-sort');
+  const releases = new Map(Array.from(setList.querySelectorAll('[data-release-code]')).map(element => [element.dataset.releaseCode, element]));
   const rows = Array.from(setList.querySelectorAll('.set-row')).map((element) => ({
     element, name: element.dataset.setName, code: element.dataset.setCode,
+    releaseCode: element.closest('[data-release-code]').dataset.releaseCode,
+    releaseName: element.closest('[data-release-code]').dataset.releaseName,
     available: element.dataset.available === 'true', complete: element.dataset.complete === 'true',
     completion: Number(element.dataset.completion), missing: Number(element.dataset.missing),
   }));
@@ -62,8 +65,17 @@ import { selectSets, matchesCard, missingCardList, cardViewState, setViewState, 
     const visible = selectSets(rows, setState);
     const visibleElements = new Set(visible.map((row) => row.element));
     rows.forEach(({ element }) => { element.hidden = !visibleElements.has(element); });
-    // Reorder summary rows without recreating controls or losing focus.
-    visible.forEach(({ element }) => setList.append(element));
+    releases.forEach(element => { element.hidden = true; });
+    // Move existing controls so dialogs and focused buttons retain their state.
+    groupSets(visible).forEach(({ code, sets }) => {
+      const group = releases.get(code);
+      group.hidden = false;
+      sets.forEach(({ element }) => group.append(element));
+      const count = group.querySelector('[data-release-count]');
+      const total = rows.filter(row => row.releaseCode === code).length;
+      if (count) count.textContent = sets.length === total ? `${total} ${total === 1 ? 'set' : 'sets'}` : `${sets.length} of ${total} sets`;
+      setList.append(group);
+    });
     pressed(document, 'data-set-filter', setState.filter);
     document.getElementById('set-results').textContent = `${visible.length} of ${rows.length} sets`;
     document.getElementById('set-empty').hidden = visible.length > 0 || rows.length === 0;

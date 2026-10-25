@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 pub struct Set {
     pub code: String,
     pub name: Option<String>,
+    #[serde(default)]
+    pub release: Option<SetRelease>,
     pub cards: Vec<Card>,
     pub collected_cards: Vec<Card>,
     pub set_percentage: String,
@@ -12,6 +14,11 @@ pub struct Set {
     pub collected_count: usize,
     pub set_completion: f32,
     pub progress: PrintingProgress,
+}
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct SetRelease {
+    pub code: String,
+    pub name: String,
 }
 /// Counts exact printings: owning a variant does not imply owning its base printing.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -94,6 +101,7 @@ pub struct ScryfallSet {
     pub code: String,
     pub name: Option<String>,
     pub search_uri: Option<String>,
+    pub parent_set_code: Option<String>,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Card {
